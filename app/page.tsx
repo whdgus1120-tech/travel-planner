@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { Trip, Member } from '@/lib/types';
-import { getRecentTrips, removeRecentTrip, addRecentTrip, getMySession } from '@/lib/storage';
+import { Trip, Member, MEMBER_COLORS } from '@/lib/types';
+import { removeRecentTrip, addRecentTrip, getMySession } from '@/lib/storage';
 import { formatDateKorean, getDaysBetween } from '@/lib/dateUtils';
 
 interface RankingItem { rank: number; name: string; ratio: number }
@@ -14,6 +14,9 @@ interface RateItem { code: string; name: string; flag: string; unit: number; krw
 
 export default function HomePage() {
   const router = useRouter();
+
+  // Session
+  const [mySession, setMySession] = useState<{ name: string; color: string } | null>(null);
 
   // Trips
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -36,20 +39,30 @@ export default function HomePage() {
   const [loadingSidebar, setLoadingSidebar] = useState(true);
 
   useEffect(() => {
-    fetchTrips();
+    const session = getMySession();
+    setMySession(session);
+    fetchTrips(session);
     fetchSidebar();
   }, []);
 
-  async function fetchTrips() {
-    const recentIds = getRecentTrips();
-    if (recentIds.length === 0) { setLoadingTrips(false); return; }
+  async function fetchTrips(session: { name: string; color: string } | null) {
+    if (!session) { setLoadingTrips(false); return; }
+
+    // 내가 멤버인 여행만 가져오기
+    const { data: memberships } = await supabase
+      .from('members').select('trip_id').eq('name', session.name);
+
+    const myTripIds = (memberships ?? []).map((m: { trip_id: string }) => m.trip_id);
+    if (myTripIds.length === 0) { setLoadingTrips(false); return; }
+
     const [tripsRes, membersRes] = await Promise.all([
-      supabase.from('trips').select('*').in('id', recentIds),
-      supabase.from('members').select('*').in('trip_id', recentIds),
+      supabase.from('trips').select('*').in('id', myTripIds).order('start_date', { ascending: false }),
+      supabase.from('members').select('*').in('trip_id', myTripIds),
     ]);
+
     if (!tripsRes.error && tripsRes.data) {
-      const sorted = recentIds.map((id) => tripsRes.data.find((t) => t.id === id)).filter(Boolean) as Trip[];
-      setTrips(sorted);
+      setTrips(tripsRes.data as Trip[]);
+      (tripsRes.data as Trip[]).forEach((t) => addRecentTrip(t.id));
     }
     if (!membersRes.error && membersRes.data) {
       const map: Record<string, Member[]> = {};
@@ -101,16 +114,22 @@ export default function HomePage() {
     const code = joinCode.trim().toUpperCase();
     if (!code) { setJoinError('초대 코드를 입력해주세요'); return; }
 
-    const { data } = await supabase.from('trips').select('id').eq('share_code', code).single();
-    if (!data) { setJoinError('해당 코드의 여행을 찾을 수 없어요'); return; }
+    const { data: tripData } = await supabase.from('trips').select('id').eq('share_code', code).single();
+    if (!tripData) { setJoinError('해당 코드의 여행을 찾을 수 없어요'); return; }
 
-    const session = getMySession();
-    if (session) {
-      // 이미 세션 있으면 바로 여행 페이지로
-      addRecentTrip(data.id);
-      router.push(`/trips/${data.id}`);
+    if (mySession) {
+      // 멤버인지 확인 후 없으면 추가
+      const { data: existing } = await supabase
+        .from('members').select('id').eq('trip_id', tripData.id).eq('name', mySession.name).single();
+      if (!existing) {
+        const { data: allMembers } = await supabase.from('members').select('color').eq('trip_id', tripData.id);
+        const usedColors = (allMembers ?? []).map((m: { color: string }) => m.color);
+        const color = mySession.color || MEMBER_COLORS.find((c) => !usedColors.includes(c)) || MEMBER_COLORS[0];
+        await supabase.from('members').insert({ trip_id: tripData.id, name: mySession.name, color });
+      }
+      addRecentTrip(tripData.id);
+      router.push(`/trips/${tripData.id}`);
     } else {
-      // 처음이면 이름 입력 페이지로
       router.push(`/trips/join/${code}`);
     }
   };
@@ -121,9 +140,22 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-2">
-          <span className="text-2xl">✈️</span>
-          <span className="text-xl font-bold text-gray-900">트립플래너</span>
+        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">✈️</span>
+            <span className="text-xl font-bold text-gray-900">트립플래너</span>
+          </div>
+          {mySession && (
+            <div className="flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                style={{ backgroundColor: mySession.color }}
+              >
+                {mySession.name[0]}
+              </div>
+              <span className="text-sm font-semibold text-gray-700">{mySession.name}</span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -190,10 +222,16 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
+              ) : !mySession ? (
+                <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
+                  <div className="text-5xl mb-4">👤</div>
+                  <p className="font-semibold text-gray-400">아직 참가한 여행이 없어요</p>
+                  <p className="text-sm text-gray-300 mt-1">새 여행을 만들거나 초대 코드로 참가하세요</p>
+                </div>
               ) : trips.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
                   <div className="text-5xl mb-4">🗺️</div>
-                  <p className="font-semibold text-gray-400">아직 여행 계획이 없어요</p>
+                  <p className="font-semibold text-gray-400">{mySession.name}님의 여행이 없어요</p>
                   <p className="text-sm text-gray-300 mt-1">새 여행을 만들거나 초대 코드로 참가하세요</p>
                 </div>
               ) : (
