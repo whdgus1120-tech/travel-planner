@@ -440,6 +440,18 @@ export default function TripDetailPage() {
 
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Candidates panel - left side, only on schedule tab */}
+        {activeTab === 'schedule' && (
+          <div className="hidden lg:flex w-60 flex-shrink-0 flex-col border-r border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+            <CandidatesPanel
+              tripId={id}
+              days={days}
+              startDate={trip.start_date}
+              onAddToSchedule={handleAddToSchedule}
+            />
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-4 py-6">
 
@@ -910,18 +922,6 @@ export default function TripDetailPage() {
 
           </div>
         </div>
-
-        {/* Candidates panel - only on schedule tab */}
-        {activeTab === 'schedule' && (
-          <div className="hidden lg:flex w-60 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
-            <CandidatesPanel
-              tripId={id}
-              days={days}
-              startDate={trip.start_date}
-              onAddToSchedule={handleAddToSchedule}
-            />
-          </div>
-        )}
 
         {/* Right chat panel - fixed on desktop */}
         {chatOpen ? (
