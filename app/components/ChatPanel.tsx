@@ -8,6 +8,8 @@ interface Props {
   tripId: string;
   mySession: { name: string; color: string } | null;
   chatMessages: ChatMessage[];
+  onDeleteMessage?: (id: string) => void;
+  onClose?: () => void;
 }
 
 function formatTime(dateStr: string): string {
@@ -15,7 +17,7 @@ function formatTime(dateStr: string): string {
   return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-export default function ChatPanel({ tripId, mySession, chatMessages }: Props) {
+export default function ChatPanel({ tripId, mySession, chatMessages, onDeleteMessage, onClose }: Props) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -54,10 +56,21 @@ export default function ChatPanel({ tripId, mySession, chatMessages }: Props) {
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0 flex items-center justify-between">
         <h2 className="font-bold text-gray-800 flex items-center gap-2">
           <span>💬</span> 채팅
         </h2>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title="채팅 닫기"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -71,7 +84,20 @@ export default function ChatPanel({ tripId, mySession, chatMessages }: Props) {
           chatMessages.map((msg) => {
             const isMe = mySession?.name === msg.member_name;
             return (
-              <div key={msg.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+              <div key={msg.id} className={`flex gap-1.5 group ${isMe ? 'flex-row-reverse' : ''}`}>
+                {/* Delete button */}
+                {onDeleteMessage && (
+                  <button
+                    onClick={() => onDeleteMessage(msg.id)}
+                    className="opacity-0 group-hover:opacity-100 self-center text-gray-300 hover:text-red-400 p-1 rounded-lg transition-all flex-shrink-0"
+                    title="메시지 삭제"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+
                 {/* Avatar */}
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5"

@@ -81,6 +81,7 @@ export default function TripDetailPage() {
   const [addingResearchCat, setAddingResearchCat] = useState<string | null>(null);
   const [researchForm, setResearchForm] = useState({ title: '', description: '', url: '' });
   const [codeCopied, setCodeCopied] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
 
   // Flights & Accommodations
   const [flights, setFlights] = useState<{ departure: FlightInfo | null; return: FlightInfo | null }>({ departure: null, return: null });
@@ -203,6 +204,13 @@ export default function TripDetailPage() {
           setChatMessages((prev) => [...prev, payload.new as ChatMessage]);
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'chat_messages', filter: `trip_id=eq.${id}` },
+        (payload: RealtimePostgresChangesPayload<ChatMessage>) => {
+          setChatMessages((prev) => prev.filter((m) => m.id !== (payload.old as ChatMessage).id));
+        }
+      )
       .subscribe();
 
     return () => {
@@ -243,6 +251,21 @@ export default function TripDetailPage() {
       if (data) setFlights((p) => ({ ...p, [type]: data as FlightInfo }));
     }
     setEditingFlight(null);
+  };
+
+  const handleDeleteChatMessage = async (msgId: string) => {
+    setChatMessages((prev) => prev.filter((m) => m.id !== msgId));
+    await supabase.from('chat_messages').delete().eq('id', msgId);
+  };
+
+  const addToCandidate = async (name: string, category: string, notes: string) => {
+    const catMap: Record<string, string> = { sightseeing: 'sightseeing', restaurant: 'food', shopping: 'shopping', memo: 'other', food: 'food', transport: 'transport', accommodation: 'accommodation', other: 'other' };
+    await supabase.from('candidate_places').insert({ trip_id: id, name, category: catMap[category] ?? 'other', notes });
+  };
+
+  const handleMoveToCandidate = async (activity: Activity) => {
+    await addToCandidate(activity.title, activity.category, activity.notes ?? '');
+    await supabase.from('activities').delete().eq('id', activity.id);
   };
 
   const handleAddToSchedule = async (candidate: { id: string; name: string; category: string; notes: string }, date: string, time: string) => {
@@ -582,6 +605,13 @@ export default function TripDetailPage() {
                                           {/* Actions */}
                                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                                             <button
+                                              onClick={() => handleMoveToCandidate(activity)}
+                                              className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"
+                                              title="후보지로 이동"
+                                            >
+                                              <span className="text-xs">📋</span>
+                                            </button>
+                                            <button
                                               onClick={() => {
                                                 setEditingActivity(activity);
                                                 setModalDate(date);
@@ -838,14 +868,23 @@ export default function TripDetailPage() {
                                     </a>
                                   )}
                                 </div>
-                                <button
-                                  onClick={() => handleDeleteResearch(item.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
+                                <div className="opacity-0 group-hover:opacity-100 flex gap-1 flex-shrink-0 transition-all">
+                                  <button
+                                    onClick={() => addToCandidate(item.title, item.place_category ?? 'sightseeing', item.description ?? '')}
+                                    className="p-1 text-gray-300 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition-colors"
+                                    title="후보지에 추가"
+                                  >
+                                    <span className="text-xs">📋</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteResearch(item.id)}
+                                    className="p-1 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -883,11 +922,29 @@ export default function TripDetailPage() {
         )}
 
         {/* Right chat panel - fixed on desktop */}
-        <div className="hidden lg:flex w-72 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
-          <div className="flex-1 p-4 overflow-hidden flex flex-col">
-            <ChatPanel tripId={id} mySession={mySession} chatMessages={chatMessages} />
+        {chatOpen ? (
+          <div className="hidden lg:flex w-72 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+            <div className="flex-1 p-4 overflow-hidden flex flex-col">
+              <ChatPanel
+                tripId={id}
+                mySession={mySession}
+                chatMessages={chatMessages}
+                onDeleteMessage={handleDeleteChatMessage}
+                onClose={() => setChatOpen(false)}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div
+            className="hidden lg:flex flex-col items-center justify-start pt-4 gap-2 border-l border-gray-100 bg-white h-[calc(100vh-theme(spacing.20))] sticky top-20 cursor-pointer hover:bg-gray-50 transition-colors flex-shrink-0"
+            style={{ width: '2.75rem' }}
+            onClick={() => setChatOpen(true)}
+            title="채팅 열기"
+          >
+            <span className="text-lg">💬</span>
+            <span className="text-gray-400 text-xs font-medium" style={{ writingMode: 'vertical-rl' }}>채팅</span>
+          </div>
+        )}
       </div>
 
       {/* Mobile chat toggle (bottom) */}
