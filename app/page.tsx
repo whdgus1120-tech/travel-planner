@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { Trip } from '@/lib/types';
-import { getRecentTrips, removeRecentTrip } from '@/lib/storage';
+import { getRecentTrips, removeRecentTrip, addRecentTrip, getMySession } from '@/lib/storage';
 import { formatDateKorean, getDaysBetween } from '@/lib/dateUtils';
 
 interface RankingItem { rank: number; name: string; ratio: number }
@@ -77,10 +77,22 @@ export default function HomePage() {
     setConfirmDeleteId(null);
   }
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     const code = joinCode.trim().toUpperCase();
     if (!code) { setJoinError('초대 코드를 입력해주세요'); return; }
-    router.push(`/trips/join/${code}`);
+
+    const { data } = await supabase.from('trips').select('id').eq('share_code', code).single();
+    if (!data) { setJoinError('해당 코드의 여행을 찾을 수 없어요'); return; }
+
+    const session = getMySession();
+    if (session) {
+      // 이미 세션 있으면 바로 여행 페이지로
+      addRecentTrip(data.id);
+      router.push(`/trips/${data.id}`);
+    } else {
+      // 처음이면 이름 입력 페이지로
+      router.push(`/trips/join/${code}`);
+    }
   };
 
   const RANK_EMOJIS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
