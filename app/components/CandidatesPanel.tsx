@@ -82,7 +82,25 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
   const getCatColor = (key: string) => CATEGORY_CONFIG[key as keyof typeof CATEGORY_CONFIG]?.color ?? 'bg-gray-100 text-gray-700';
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className={`flex flex-col h-full relative transition-colors ${dragOver ? 'bg-purple-50' : ''}`}
+      onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        try {
+          const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+          if (data.type === 'activity' && onReceiveActivity) onReceiveActivity(data);
+        } catch { /* ignore */ }
+      }}
+    >
+      {dragOver && (
+        <div className="absolute inset-0 border-2 border-dashed border-purple-300 pointer-events-none z-20 flex items-center justify-center rounded">
+          <span className="bg-purple-100 text-purple-600 text-sm font-semibold px-4 py-2 rounded-xl shadow">후보지로 이동</span>
+        </div>
+      )}
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -141,27 +159,9 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
         </div>
       )}
 
-      {/* Candidates List - also a drop zone for activities */}
-      <div
-        className={`flex-1 overflow-y-auto px-3 py-2 space-y-2 transition-colors ${dragOver ? 'bg-purple-50' : ''}`}
-        onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          try {
-            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-            if (data.type === 'activity' && onReceiveActivity) onReceiveActivity(data);
-          } catch { /* ignore */ }
-        }}
-      >
-        {dragOver && (
-          <div className="border-2 border-dashed border-purple-300 rounded-xl py-4 text-center text-purple-400 text-xs font-medium mb-2">
-            여기에 놓으면 후보지로 이동
-          </div>
-        )}
-        {candidates.length === 0 && !dragOver ? (
+      {/* Candidates List */}
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        {candidates.length === 0 ? (
           <div className="text-center py-8 text-gray-300">
             <div className="text-3xl mb-2">🗺️</div>
             <p className="text-xs">가고 싶은 곳을 추가해보세요</p>

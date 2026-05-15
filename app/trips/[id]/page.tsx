@@ -83,6 +83,8 @@ export default function TripDetailPage() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [candidatesWidth, setCandidatesWidth] = useState(240);
+  const [chatWidth, setChatWidth] = useState(288);
 
   // Flights & Accommodations
   const [flights, setFlights] = useState<{ departure: FlightInfo | null; return: FlightInfo | null }>({ departure: null, return: null });
@@ -254,6 +256,23 @@ export default function TripDetailPage() {
       if (data) setFlights((p) => ({ ...p, [type]: data as FlightInfo }));
     }
     setEditingFlight(null);
+  };
+
+  const startResize = (panel: 'candidates' | 'chat', e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = panel === 'candidates' ? candidatesWidth : chatWidth;
+    const onMove = (ev: MouseEvent) => {
+      const newWidth = Math.max(160, Math.min(520, startWidth - (ev.clientX - startX)));
+      if (panel === 'candidates') setCandidatesWidth(newWidth);
+      else setChatWidth(newWidth);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
   };
 
   const handleDeleteChatMessage = async (msgId: string) => {
@@ -950,9 +969,21 @@ export default function TripDetailPage() {
           </div>
         </div>
 
-        {/* Candidates panel - right of schedule, only on schedule tab */}
+        {/* ── Resize handle 1 (between schedule and candidates) ── */}
         {activeTab === 'schedule' && (
-          <div className="hidden lg:flex w-60 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+          <div
+            className="hidden lg:flex w-1 flex-shrink-0 bg-gray-200 hover:bg-blue-400 active:bg-blue-500 cursor-col-resize transition-colors select-none"
+            onMouseDown={(e) => startResize('candidates', e)}
+            title="드래그해서 너비 조절"
+          />
+        )}
+
+        {/* Candidates panel */}
+        {activeTab === 'schedule' && (
+          <div
+            className="hidden lg:flex flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20"
+            style={{ width: candidatesWidth }}
+          >
             <CandidatesPanel
               tripId={id}
               days={days}
@@ -963,9 +994,21 @@ export default function TripDetailPage() {
           </div>
         )}
 
-        {/* Right chat panel - fixed on desktop */}
+        {/* ── Resize handle 2 (between candidates/schedule and chat) ── */}
+        {chatOpen && (
+          <div
+            className="hidden lg:flex w-1 flex-shrink-0 bg-gray-200 hover:bg-blue-400 active:bg-blue-500 cursor-col-resize transition-colors select-none"
+            onMouseDown={(e) => startResize('chat', e)}
+            title="드래그해서 너비 조절"
+          />
+        )}
+
+        {/* Right chat panel */}
         {chatOpen ? (
-          <div className="hidden lg:flex w-72 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+          <div
+            className="hidden lg:flex flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20"
+            style={{ width: chatWidth }}
+          >
             <div className="flex-1 p-4 overflow-hidden flex flex-col">
               <ChatPanel
                 tripId={id}
