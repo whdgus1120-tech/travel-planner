@@ -219,6 +219,7 @@ export default function TripDetailPage() {
   }, [id]);
 
   const handleDeleteActivity = async (activityId: string) => {
+    setActivities((prev) => prev.filter((a) => a.id !== activityId));
     await supabase.from('activities').delete().eq('id', activityId);
   };
 
@@ -230,6 +231,7 @@ export default function TripDetailPage() {
   };
 
   const handleDeleteResearch = async (itemId: string) => {
+    setResearchItems((prev) => prev.filter((r) => r.id !== itemId));
     await supabase.from('research_items').delete().eq('id', itemId);
   };
 
