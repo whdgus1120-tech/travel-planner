@@ -12,6 +12,7 @@ import ResearchModal from '@/app/components/ResearchModal';
 import ChatPanel from '@/app/components/ChatPanel';
 import PackingList from '@/app/components/PackingList';
 import BudgetTracker from '@/app/components/BudgetTracker';
+import CandidatesPanel from '@/app/components/CandidatesPanel';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 type Tab = 'schedule' | 'research' | 'packing' | 'budget';
@@ -242,6 +243,19 @@ export default function TripDetailPage() {
       if (data) setFlights((p) => ({ ...p, [type]: data as FlightInfo }));
     }
     setEditingFlight(null);
+  };
+
+  const handleAddToSchedule = async (candidate: { id: string; name: string; category: string; notes: string }, date: string, time: string) => {
+    await supabase.from('activities').insert({
+      trip_id: id,
+      date,
+      time: time || '09:00',
+      title: candidate.name,
+      category: candidate.category,
+      notes: candidate.notes,
+      location: '',
+      assigned_to: [],
+    });
   };
 
   const saveAccommodation = async (date: string) => {
@@ -601,8 +615,8 @@ export default function TripDetailPage() {
                         </div>
                       )}
 
-                      {/* 🏨 숙소 정보 (날짜별 항상 표시) */}
-                      <div className="border-t border-gray-100 px-5 py-3">
+                      {/* 🏨 숙소 정보 (마지막날 제외) */}
+                      {!isLastDay && <div className="border-t border-gray-100 px-5 py-3">
                         {editingAccDate === date ? (
                           <div className="space-y-2">
                             <p className="text-xs font-bold text-gray-600 mb-1">🏨 숙소 정보</p>
@@ -640,7 +654,7 @@ export default function TripDetailPage() {
                             <span className="ml-auto text-xs text-gray-300 group-hover:text-gray-500 opacity-0 group-hover:opacity-100 transition-all">✏️</span>
                           </div>
                         )}
-                      </div>
+                      </div>}
 
                       {/* ✈️ 귀국 배너 (마지막날 하단) */}
                       {isLastDay && (
@@ -856,8 +870,20 @@ export default function TripDetailPage() {
           </div>
         </div>
 
+        {/* Candidates panel - only on schedule tab */}
+        {activeTab === 'schedule' && (
+          <div className="hidden lg:flex w-60 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+            <CandidatesPanel
+              tripId={id}
+              days={days}
+              startDate={trip.start_date}
+              onAddToSchedule={handleAddToSchedule}
+            />
+          </div>
+        )}
+
         {/* Right chat panel - fixed on desktop */}
-        <div className="hidden lg:flex w-80 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+        <div className="hidden lg:flex w-72 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
           <div className="flex-1 p-4 overflow-hidden flex flex-col">
             <ChatPanel tripId={id} mySession={mySession} chatMessages={chatMessages} />
           </div>
