@@ -82,6 +82,7 @@ export default function TripDetailPage() {
   const [researchForm, setResearchForm] = useState({ title: '', description: '', url: '' });
   const [codeCopied, setCodeCopied] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const [mobileChatOpen, setMobileChatOpen] = useState(true);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [candidatesWidth, setCandidatesWidth] = useState(240);
   const [chatWidth, setChatWidth] = useState(288);
@@ -1035,12 +1036,34 @@ export default function TripDetailPage() {
         )}
       </div>
 
-      {/* Mobile chat toggle (bottom) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-30">
-        <div className="max-h-72 flex flex-col">
-          <ChatPanel tripId={id} mySession={mySession} chatMessages={chatMessages} />
+      {/* Mobile chat (bottom) */}
+      {mobileChatOpen ? (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-30">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+            <span className="text-sm font-bold text-gray-700 flex items-center gap-1.5">💬 채팅</span>
+            <button
+              onClick={() => setMobileChatOpen(false)}
+              className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="max-h-64 flex flex-col">
+            <ChatPanel tripId={id} mySession={mySession} chatMessages={chatMessages} onDeleteMessage={handleDeleteChatMessage} />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="lg:hidden fixed bottom-4 right-4 z-30">
+          <button
+            onClick={() => setMobileChatOpen(true)}
+            className="bg-blue-500 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors"
+          >
+            <span className="text-xl">💬</span>
+          </button>
+        </div>
+      )}
 
       {/* Modals */}
       {showActivityModal && (
