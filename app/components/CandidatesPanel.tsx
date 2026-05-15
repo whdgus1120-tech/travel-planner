@@ -144,13 +144,14 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
       {/* Candidates List - also a drop zone for activities */}
       <div
         className={`flex-1 overflow-y-auto px-3 py-2 space-y-2 transition-colors ${dragOver ? 'bg-purple-50' : ''}`}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
         onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
         onDrop={(e) => {
           e.preventDefault();
           setDragOver(false);
           try {
-            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
             if (data.type === 'activity' && onReceiveActivity) onReceiveActivity(data);
           } catch { /* ignore */ }
         }}
@@ -176,7 +177,7 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
                 className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group cursor-grab active:cursor-grabbing"
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData('application/json', JSON.stringify({ type: 'candidate', ...c }));
+                  e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'candidate', ...c }));
                   e.dataTransfer.effectAllowed = 'move';
                 }}
               >

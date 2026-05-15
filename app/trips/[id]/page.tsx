@@ -449,7 +449,7 @@ export default function TripDetailPage() {
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="px-4 py-6">
 
             {/* ===== SCHEDULE TAB ===== */}
             {activeTab === 'schedule' && (
@@ -470,14 +470,16 @@ export default function TripDetailPage() {
                       className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
                         dragOverDate === date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-100'
                       }`}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverDate(date); }}
+                      onDragEnter={(e) => { e.preventDefault(); setDragOverDate(date); }}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
                       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDate(null); }}
                       onDrop={(e) => {
                         e.preventDefault();
                         setDragOverDate(null);
                         try {
-                          const data = JSON.parse(e.dataTransfer.getData('application/json'));
-                          if (data.type === 'candidate') handleAddToSchedule(data, date, '');
+                          const raw = e.dataTransfer.getData('text/plain');
+                          const data = JSON.parse(raw);
+                          if (data.type === 'candidate') handleAddToSchedule(data, date, '09:00');
                         } catch { /* ignore */ }
                       }}
                     >
@@ -589,7 +591,7 @@ export default function TripDetailPage() {
                                       className="flex gap-4 px-5 py-3 hover:bg-gray-50 group cursor-grab active:cursor-grabbing"
                                       draggable
                                       onDragStart={(e) => {
-                                        e.dataTransfer.setData('application/json', JSON.stringify({
+                                        e.dataTransfer.setData('text/plain', JSON.stringify({
                                           type: 'activity',
                                           id: activity.id,
                                           name: activity.title,
