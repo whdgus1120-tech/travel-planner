@@ -308,6 +308,9 @@ export default function TripDetailPage() {
       location: '',
       assigned_to: [],
     });
+    if (candidate.id) {
+      await supabase.from('candidate_places').delete().eq('id', candidate.id);
+    }
   };
 
   const saveAccommodation = async (date: string) => {

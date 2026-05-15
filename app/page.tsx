@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { Trip } from '@/lib/types';
+import { Trip, Member } from '@/lib/types';
 import { getRecentTrips, removeRecentTrip, addRecentTrip, getMySession } from '@/lib/storage';
 import { formatDateKorean, getDaysBetween } from '@/lib/dateUtils';
 
@@ -20,6 +20,7 @@ export default function HomePage() {
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [membersByTrip, setMembersByTrip] = useState<Record<string, Member[]>>({});
 
   // Join
   const [showJoinInput, setShowJoinInput] = useState(false);
@@ -42,13 +43,32 @@ export default function HomePage() {
   async function fetchTrips() {
     const recentIds = getRecentTrips();
     if (recentIds.length === 0) { setLoadingTrips(false); return; }
-    const { data, error } = await supabase
-      .from('trips').select('*').in('id', recentIds);
-    if (!error && data) {
-      const sorted = recentIds.map((id) => data.find((t) => t.id === id)).filter(Boolean) as Trip[];
+    const [tripsRes, membersRes] = await Promise.all([
+      supabase.from('trips').select('*').in('id', recentIds),
+      supabase.from('members').select('*').in('trip_id', recentIds),
+    ]);
+    if (!tripsRes.error && tripsRes.data) {
+      const sorted = recentIds.map((id) => tripsRes.data.find((t) => t.id === id)).filter(Boolean) as Trip[];
       setTrips(sorted);
     }
+    if (!membersRes.error && membersRes.data) {
+      const map: Record<string, Member[]> = {};
+      (membersRes.data as Member[]).forEach((m) => {
+        if (!map[m.trip_id]) map[m.trip_id] = [];
+        map[m.trip_id].push(m);
+      });
+      setMembersByTrip(map);
+    }
     setLoadingTrips(false);
+  }
+
+  function getDDay(startDate: string, endDate: string): string {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate); end.setHours(0, 0, 0, 0);
+    if (today >= start && today <= end) return 'D-Day';
+    const diff = Math.ceil((start.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
   }
 
   async function fetchSidebar() {
@@ -219,13 +239,29 @@ export default function HomePage() {
                                   {isOngoing && <span className="flex-shrink-0 text-xs bg-green-100 text-green-600 font-semibold px-2 py-0.5 rounded-full">여행중 🟢</span>}
                                   {isUpcoming && <span className="flex-shrink-0 text-xs bg-blue-100 text-blue-600 font-semibold px-2 py-0.5 rounded-full">예정</span>}
                                   {isPast && <span className="flex-shrink-0 text-xs bg-gray-100 text-gray-400 font-semibold px-2 py-0.5 rounded-full">완료</span>}
+                                  <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full ${isOngoing ? 'bg-green-500 text-white' : isPast ? 'bg-gray-200 text-gray-500' : 'bg-orange-100 text-orange-600'}`}>
+                                    {getDDay(trip.start_date, trip.end_date)}
+                                  </span>
                                 </div>
                                 <p className="text-sm text-gray-400 mb-1.5">📍 {trip.destination}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap">
+                                <div className="flex items-center gap-2 text-xs text-gray-400 flex-wrap mb-1.5">
                                   <span>{formatDateKorean(trip.start_date)} ~ {formatDateKorean(trip.end_date)}</span>
                                   <span className="text-gray-200">|</span>
                                   <span>{days.length}일</span>
                                 </div>
+                                {(membersByTrip[trip.id] ?? []).length > 0 && (
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {(membersByTrip[trip.id] ?? []).map((m) => (
+                                      <span
+                                        key={m.id}
+                                        className="text-xs text-white font-semibold px-2 py-0.5 rounded-full"
+                                        style={{ backgroundColor: m.color }}
+                                      >
+                                        {m.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </Link>
                             {/* Delete button */}
