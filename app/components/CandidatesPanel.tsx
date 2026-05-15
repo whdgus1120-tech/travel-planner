@@ -28,15 +28,17 @@ interface Props {
   days: string[];
   startDate: string;
   onAddToSchedule: (candidate: Candidate, date: string, time: string) => void;
+  onReceiveActivity?: (activity: { id: string; name: string; category: string; notes: string }) => void;
 }
 
-export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedule }: Props) {
+export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedule, onReceiveActivity }: Props) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', category: 'sightseeing', notes: '' });
   const [adding, setAdding] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ date: days[0] ?? '', time: '' });
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     supabase.from('candidate_places').select('*').eq('trip_id', tripId).order('created_at').then(({ data }) => {
@@ -139,19 +141,45 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
         </div>
       )}
 
-      {/* Candidates List */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
-        {candidates.length === 0 ? (
+      {/* Candidates List - also a drop zone for activities */}
+      <div
+        className={`flex-1 overflow-y-auto px-3 py-2 space-y-2 transition-colors ${dragOver ? 'bg-purple-50' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          try {
+            const data = JSON.parse(e.dataTransfer.getData('application/json'));
+            if (data.type === 'activity' && onReceiveActivity) onReceiveActivity(data);
+          } catch { /* ignore */ }
+        }}
+      >
+        {dragOver && (
+          <div className="border-2 border-dashed border-purple-300 rounded-xl py-4 text-center text-purple-400 text-xs font-medium mb-2">
+            여기에 놓으면 후보지로 이동
+          </div>
+        )}
+        {candidates.length === 0 && !dragOver ? (
           <div className="text-center py-8 text-gray-300">
             <div className="text-3xl mb-2">🗺️</div>
             <p className="text-xs">가고 싶은 곳을 추가해보세요</p>
+            <p className="text-xs mt-1">일정 항목을 여기로 드래그하세요</p>
           </div>
         ) : (
           candidates.map((c) => {
             const cat = getCatConfig(c.category);
             const isAssigning = assigningId === c.id;
             return (
-              <div key={c.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group">
+              <div
+                key={c.id}
+                className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group cursor-grab active:cursor-grabbing"
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('application/json', JSON.stringify({ type: 'candidate', ...c }));
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+              >
                 <div className="flex items-start gap-2 p-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${getCatColor(c.category)}`}>
                     {cat.icon}

@@ -82,6 +82,7 @@ export default function TripDetailPage() {
   const [researchForm, setResearchForm] = useState({ title: '', description: '', url: '' });
   const [codeCopied, setCodeCopied] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   // Flights & Accommodations
   const [flights, setFlights] = useState<{ departure: FlightInfo | null; return: FlightInfo | null }>({ departure: null, return: null });
@@ -267,7 +268,14 @@ export default function TripDetailPage() {
 
   const handleMoveToCandidate = async (activity: Activity) => {
     await addToCandidate(activity.title, activity.category, activity.notes ?? '');
+    setActivities((prev) => prev.filter((a) => a.id !== activity.id));
     await supabase.from('activities').delete().eq('id', activity.id);
+  };
+
+  const handleReceiveActivity = async (a: { id: string; name: string; category: string; notes: string }) => {
+    await addToCandidate(a.name, a.category, a.notes);
+    setActivities((prev) => prev.filter((act) => act.id !== a.id));
+    await supabase.from('activities').delete().eq('id', a.id);
   };
 
   const handleAddToSchedule = async (candidate: { id: string; name: string; category: string; notes: string }, date: string, time: string) => {
@@ -440,18 +448,6 @@ export default function TripDetailPage() {
 
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Candidates panel - left side, only on schedule tab */}
-        {activeTab === 'schedule' && (
-          <div className="hidden lg:flex w-60 flex-shrink-0 flex-col border-r border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
-            <CandidatesPanel
-              tripId={id}
-              days={days}
-              startDate={trip.start_date}
-              onAddToSchedule={handleAddToSchedule}
-            />
-          </div>
-        )}
-
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-4 py-6">
 
@@ -469,7 +465,22 @@ export default function TripDetailPage() {
                   const acc = accommodations[date];
 
                   return (
-                    <div key={date} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div
+                      key={date}
+                      className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-all ${
+                        dragOverDate === date ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-100'
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverDate(date); }}
+                      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverDate(null); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverDate(null);
+                        try {
+                          const data = JSON.parse(e.dataTransfer.getData('application/json'));
+                          if (data.type === 'candidate') handleAddToSchedule(data, date, '');
+                        } catch { /* ignore */ }
+                      }}
+                    >
 
                       {/* ✈️ 출국 배너 (첫날 상단) */}
                       {isFirstDay && (
@@ -573,7 +584,21 @@ export default function TripDetailPage() {
                                     activity.assigned_to.includes(m.name)
                                   );
                                   return (
-                                    <div key={activity.id} className="flex gap-4 px-5 py-3 hover:bg-gray-50 group">
+                                    <div
+                                      key={activity.id}
+                                      className="flex gap-4 px-5 py-3 hover:bg-gray-50 group cursor-grab active:cursor-grabbing"
+                                      draggable
+                                      onDragStart={(e) => {
+                                        e.dataTransfer.setData('application/json', JSON.stringify({
+                                          type: 'activity',
+                                          id: activity.id,
+                                          name: activity.title,
+                                          category: activity.category,
+                                          notes: activity.notes ?? '',
+                                        }));
+                                        e.dataTransfer.effectAllowed = 'move';
+                                      }}
+                                    >
                                       {/* Time */}
                                       <div className="w-12 text-right flex-shrink-0">
                                         <span className="text-xs text-gray-400 font-mono">
@@ -922,6 +947,19 @@ export default function TripDetailPage() {
 
           </div>
         </div>
+
+        {/* Candidates panel - right of schedule, only on schedule tab */}
+        {activeTab === 'schedule' && (
+          <div className="hidden lg:flex w-60 flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20">
+            <CandidatesPanel
+              tripId={id}
+              days={days}
+              startDate={trip.start_date}
+              onAddToSchedule={handleAddToSchedule}
+              onReceiveActivity={handleReceiveActivity}
+            />
+          </div>
+        )}
 
         {/* Right chat panel - fixed on desktop */}
         {chatOpen ? (
