@@ -96,6 +96,7 @@ export default function TripDetailPage() {
   const [accForm, setAccForm] = useState({ name: '', address: '' });
 
   const [mySession, setMySession] = useState<{ name: string; color: string } | null>(null);
+  const [weather, setWeather] = useState<Record<string, { max: number; min: number; code: number }>>({});
 
   // Load session
   useEffect(() => {
@@ -147,7 +148,41 @@ export default function TripDetailPage() {
     setSelectedDay(days.includes(today) ? today : days[0] ?? '');
 
     setLoading(false);
+
+    // Fetch weather from Open-Meteo (free, no API key)
+    fetchWeather(tripData.destination, tripData.start_date, tripData.end_date);
   }, [id]);
+
+  async function fetchWeather(destination: string, startDate: string, endDate: string) {
+    try {
+      // 1. Geocode the destination
+      const geoRes = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(destination)}&count=1&language=ko&format=json`
+      );
+      const geoData = await geoRes.json();
+      const loc = geoData.results?.[0];
+      if (!loc) return;
+
+      // 2. Fetch daily forecast (supports past_days up to 92 + 16 days ahead)
+      const weatherRes = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}` +
+        `&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto&past_days=92&forecast_days=16`
+      );
+      const weatherData = await weatherRes.json();
+      const { time, temperature_2m_max, temperature_2m_min, weathercode } = weatherData.daily ?? {};
+      if (!time) return;
+
+      const map: Record<string, { max: number; min: number; code: number }> = {};
+      (time as string[]).forEach((d: string, i: number) => {
+        map[d] = {
+          max: Math.round(temperature_2m_max[i]),
+          min: Math.round(temperature_2m_min[i]),
+          code: weathercode[i],
+        };
+      });
+      setWeather(map);
+    } catch { /* weather is optional */ }
+  }
 
   useEffect(() => {
     fetchAll();
@@ -325,6 +360,18 @@ export default function TripDetailPage() {
     }
     setEditingAccDate(null);
   };
+
+  function getWeatherEmoji(code: number): string {
+    if (code === 0) return '☀️';
+    if (code <= 3) return '⛅';
+    if (code <= 48) return '🌫️';
+    if (code <= 55) return '🌦️';
+    if (code <= 65) return '🌧️';
+    if (code <= 77) return '❄️';
+    if (code <= 82) return '🌦️';
+    if (code <= 99) return '⛈️';
+    return '🌡️';
+  }
 
   if (loading) {
     return (
@@ -561,6 +608,14 @@ export default function TripDetailPage() {
                             Day {dayNum}
                           </span>
                           <span className="font-semibold text-gray-800">{formatDateKorean(date)}</span>
+                          {weather[date] && (
+                            <span className="flex items-center gap-1 text-xs text-gray-500 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">
+                              <span>{getWeatherEmoji(weather[date].code)}</span>
+                              <span className="font-semibold text-orange-500">{weather[date].max}°</span>
+                              <span className="text-gray-400">/</span>
+                              <span className="text-blue-400">{weather[date].min}°</span>
+                            </span>
+                          )}
                           {dayActivities.length > 0 && (
                             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                               {dayActivities.length}개
