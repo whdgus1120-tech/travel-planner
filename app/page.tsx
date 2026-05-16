@@ -20,10 +20,12 @@ export default function HomePage() {
 
   // Trips
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [tripOrder, setTripOrder] = useState<string[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [membersByTrip, setMembersByTrip] = useState<Record<string, Member[]>>({});
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   // Edit trip
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
@@ -70,8 +72,24 @@ export default function HomePage() {
     ]);
 
     if (!tripsRes.error && tripsRes.data) {
-      setTrips(tripsRes.data as Trip[]);
-      (tripsRes.data as Trip[]).forEach((t) => addRecentTrip(t.id));
+      const fetched = tripsRes.data as Trip[];
+      const today = new Date().toISOString().split('T')[0];
+      const sorted = [...fetched].sort((a, b) => {
+        const ongoing = (t: Trip) => t.start_date <= today && today <= t.end_date;
+        const upcoming = (t: Trip) => t.start_date > today;
+        if (ongoing(a) && !ongoing(b)) return -1;
+        if (!ongoing(a) && ongoing(b)) return 1;
+        if (upcoming(a) && !upcoming(b)) return -1;
+        if (!upcoming(a) && upcoming(b)) return 1;
+        return a.start_date < b.start_date ? -1 : 1;
+      });
+      const savedOrder = (() => { try { return JSON.parse(localStorage.getItem('trip_order') ?? '[]') as string[]; } catch { return []; } })();
+      const reordered = savedOrder.length
+        ? [...sorted].sort((a, b) => { const ai = savedOrder.indexOf(a.id); const bi = savedOrder.indexOf(b.id); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi); })
+        : sorted;
+      setTrips(reordered);
+      setTripOrder(reordered.map((t) => t.id));
+      fetched.forEach((t) => addRecentTrip(t.id));
     }
     if (!membersRes.error && membersRes.data) {
       const map: Record<string, Member[]> = {};
@@ -141,6 +159,18 @@ export default function HomePage() {
     } else {
       router.push(`/trips/join/${code}`);
     }
+  };
+
+  const handleDrop = (toIdx: number) => {
+    if (dragIdx === null || dragIdx === toIdx) return;
+    const next = [...trips];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setTrips(next);
+    const order = next.map((t) => t.id);
+    setTripOrder(order);
+    localStorage.setItem('trip_order', JSON.stringify(order));
+    setDragIdx(null);
   };
 
   const handleEditTrip = async () => {
@@ -285,16 +315,25 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {trips.map((trip) => {
+                  {trips.map((trip, idx) => {
                     const days = getDaysBetween(trip.start_date, trip.end_date);
                     const today = new Date().toISOString().split('T')[0];
                     const isOngoing = trip.start_date <= today && today <= trip.end_date;
                     const isUpcoming = trip.start_date > today;
                     const isPast = trip.end_date < today;
                     const isConfirmDelete = confirmDeleteId === trip.id;
+                    const isDragging = dragIdx === idx;
 
                     return (
-                      <div key={trip.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden">
+                      <div
+                        key={trip.id}
+                        draggable
+                        onDragStart={() => setDragIdx(idx)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleDrop(idx)}
+                        onDragEnd={() => setDragIdx(null)}
+                        className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all overflow-hidden cursor-grab active:cursor-grabbing ${isDragging ? 'opacity-40 border-blue-300' : 'border-gray-100'}`}
+                      >
                         {isConfirmDelete ? (
                           <div className="p-5 bg-red-50 flex items-center justify-between gap-4">
                             <p className="text-sm text-red-700 font-medium">
