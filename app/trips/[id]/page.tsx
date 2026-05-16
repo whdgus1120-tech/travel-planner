@@ -94,6 +94,8 @@ export default function TripDetailPage() {
   const [flightForm, setFlightForm] = useState({ airport_from: '', airport_to: '', flight_number: '', departure_time: '', arrival_time: '' });
   const [accForm, setAccForm] = useState({ name: '', address: '' });
   const [sameAccForAll, setSameAccForAll] = useState(false);
+  const [accUrlInput, setAccUrlInput] = useState('');
+  const [accUrlResolving, setAccUrlResolving] = useState(false);
 
   const [mySession, setMySession] = useState<{ name: string; color: string } | null>(null);
   const [weather, setWeather] = useState<Record<string, { max: number; min: number; code: number }>>({});
@@ -358,7 +360,22 @@ export default function TripDetailPage() {
       }
     }
     setEditingAccDate(null);
+    setAccUrlInput('');
   };
+
+  async function resolveAccUrl(url: string) {
+    if (!url.trim()) return;
+    setAccUrlResolving(true);
+    try {
+      const res = await fetch(`/api/resolve-maps?url=${encodeURIComponent(url.trim())}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.name) setAccForm((p) => ({ ...p, name: data.name ?? p.name, address: data.address ?? p.address }));
+      }
+    } catch { /* ignore */ }
+    setAccUrlResolving(false);
+    setAccUrlInput('');
+  }
 
   function getWeatherEmoji(code: number): string {
     if (code === 0) return '☀️';
@@ -806,6 +823,23 @@ export default function TripDetailPage() {
                                 </label>
                               )}
                             </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                type="url"
+                                value={accUrlInput}
+                                onChange={(e) => setAccUrlInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && resolveAccUrl(accUrlInput)}
+                                placeholder="구글맵 링크 붙여넣기 (자동완성)"
+                                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                              />
+                              <button
+                                onClick={() => resolveAccUrl(accUrlInput)}
+                                disabled={accUrlResolving || !accUrlInput.trim()}
+                                className="text-xs bg-gray-100 text-gray-600 font-semibold px-3 py-2 rounded-xl hover:bg-gray-200 disabled:opacity-40 flex-shrink-0"
+                              >
+                                {accUrlResolving ? '검색중' : '불러오기'}
+                              </button>
+                            </div>
                             <input
                               value={accForm.name}
                               onChange={(e) => setAccForm((p) => ({ ...p, name: e.target.value }))}
@@ -824,14 +858,14 @@ export default function TripDetailPage() {
                               </p>
                             )}
                             <div className="flex gap-2 justify-end">
-                              <button onClick={() => { setEditingAccDate(null); setSameAccForAll(false); }} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-600">취소</button>
+                              <button onClick={() => { setEditingAccDate(null); setSameAccForAll(false); setAccUrlInput(''); }} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-600">취소</button>
                               <button onClick={() => saveAccommodation(date)} className="text-xs bg-blue-500 text-white font-bold px-4 py-1.5 rounded-lg hover:bg-blue-600">저장</button>
                             </div>
                           </div>
                         ) : (
                           <div
                             className="flex items-center gap-2 cursor-pointer group"
-                            onClick={() => { setEditingAccDate(date); setAccForm({ name: acc?.name ?? '', address: acc?.address ?? '' }); }}
+                            onClick={() => { setEditingAccDate(date); setAccForm({ name: acc?.name ?? '', address: acc?.address ?? '' }); setAccUrlInput(''); }}
                           >
                             <span className="text-base">🏨</span>
                             {acc?.name ? (
@@ -1114,6 +1148,9 @@ export default function TripDetailPage() {
               tripId={id}
               destination={trip.destination}
               onClose={() => setChatOpen(false)}
+              onSelectAccommodation={editingAccDate !== null ? (name, address) => {
+                setAccForm({ name, address });
+              } : undefined}
             />
           </div>
         ) : (

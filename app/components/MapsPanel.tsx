@@ -7,6 +7,7 @@ interface Props {
   tripId: string;
   destination: string;
   onClose?: () => void;
+  onSelectAccommodation?: (name: string, address: string) => void;
 }
 
 interface PlaceCard {
@@ -62,7 +63,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   });
 }
 
-export default function MapsPanel({ tripId, destination, onClose }: Props) {
+export default function MapsPanel({ tripId, destination, onClose, onSelectAccommodation }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const serviceRef = useRef<google.maps.places.PlacesService | null>(null);
@@ -337,6 +338,17 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
               >
                 {adding ? '추가 중...' : '+ 후보지 추가'}
               </button>
+              {onSelectAccommodation && (
+                <button
+                  onClick={() => {
+                    onSelectAccommodation(card.name, card.address ?? '');
+                    setCard(null);
+                  }}
+                  className="text-xs bg-purple-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-purple-600 whitespace-nowrap"
+                >
+                  🏨 숙소로 지정
+                </button>
+              )}
               <button onClick={() => setCard(null)} className="text-xs text-gray-400 hover:text-gray-600 text-center">
                 닫기
               </button>
