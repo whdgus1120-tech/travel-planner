@@ -9,7 +9,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body className="bg-gray-50 min-h-screen">{children}</body>
+      <body className="bg-gray-50 min-h-screen">
+        {children}
+        <footer className="fixed bottom-1 right-2 text-[10px] text-gray-300 z-10 pointer-events-none select-none">
+          © 2025 ParkJongHyun. All rights reserved.
+        </footer>
+      </body>
     </html>
   );
 }

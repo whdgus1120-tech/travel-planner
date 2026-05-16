@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export const revalidate = 3600; // 1시간 캐시
+export const revalidate = 300; // 5분 캐시 (open.er-api.com 자체는 1시간 단위 갱신)
 
 const CURRENCIES = [
   { code: 'USD', name: '미국 달러', flag: '🇺🇸', unit: 1 },
@@ -14,7 +14,7 @@ const CURRENCIES = [
 export async function GET() {
   try {
     const res = await fetch('https://open.er-api.com/v6/latest/USD', {
-      next: { revalidate: 3600 },
+      next: { revalidate: 300 },
     });
     const json = await res.json();
 

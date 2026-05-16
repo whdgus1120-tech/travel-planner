@@ -16,21 +16,15 @@ const DEFAULT_ITEMS: Omit<PackingItem, 'id' | 'trip_id'>[] = [
   // 여행서류
   { category: '여행서류', name: '여권 (유효기간 6개월 이상 확인)', is_checked: false, is_custom: false },
   { category: '여행서류', name: '항공권 e-티켓', is_checked: false, is_custom: false },
-  { category: '여행서류', name: '숙소 예약확인서', is_checked: false, is_custom: false },
-  { category: '여행서류', name: '여행자보험 가입증서', is_checked: false, is_custom: false },
   // 전자기기
   { category: '전자기기', name: '스마트폰 + 충전기', is_checked: false, is_custom: false },
   { category: '전자기기', name: '보조배터리', is_checked: false, is_custom: false },
   { category: '전자기기', name: '해외용 전원 어댑터', is_checked: false, is_custom: false },
+  { category: '전자기기', name: '블루투스 스피커', is_checked: false, is_custom: false },
   // 세면/위생
   { category: '세면/위생', name: '칫솔 + 치약', is_checked: false, is_custom: false },
   { category: '세면/위생', name: '선크림 SPF50+', is_checked: false, is_custom: false },
   { category: '세면/위생', name: '개인 세면도구 (소분)', is_checked: false, is_custom: false },
-  // 의류
-  { category: '의류', name: '속옷 + 양말 (여행일수만큼)', is_checked: false, is_custom: false },
-  { category: '의류', name: '여벌 옷', is_checked: false, is_custom: false },
-  { category: '의류', name: '편한 운동화', is_checked: false, is_custom: false },
-  { category: '의류', name: '가벼운 겉옷', is_checked: false, is_custom: false },
   // 의약품
   { category: '의약품', name: '두통약 + 소화제', is_checked: false, is_custom: false },
   { category: '의약품', name: '반창고/밴드', is_checked: false, is_custom: false },
@@ -39,20 +33,19 @@ const DEFAULT_ITEMS: Omit<PackingItem, 'id' | 'trip_id'>[] = [
   { category: '금융/결제', name: '해외 겸용 신용/체크카드', is_checked: false, is_custom: false },
   { category: '금융/결제', name: '현지 통화 현금', is_checked: false, is_custom: false },
   // 기타
-  { category: '기타', name: '물티슈/손소독제', is_checked: false, is_custom: false },
+  { category: '기타', name: '우산/우비', is_checked: false, is_custom: false },
 ];
 
 const CATEGORY_ICONS: Record<string, string> = {
   '여행서류': '📋',
   '전자기기': '📱',
   '세면/위생': '🧴',
-  '의류': '👕',
   '의약품': '💊',
   '금융/결제': '💳',
   '기타': '📦',
 };
 
-const CATEGORIES = ['여행서류', '전자기기', '세면/위생', '의류', '의약품', '금융/결제', '기타'];
+const CATEGORIES = ['여행서류', '전자기기', '세면/위생', '의약품', '금융/결제', '기타'];
 
 interface Props { tripId: string }
 

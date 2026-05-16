@@ -3,11 +3,11 @@ import { NextResponse } from 'next/server';
 export const revalidate = 3600;
 
 const DESTINATIONS = [
-  { name: '일본', keywords: ['일본여행', '일본 여행'] },
-  { name: '태국', keywords: ['태국여행', '태국 여행'] },
-  { name: '베트남', keywords: ['베트남여행', '베트남 여행'] },
-  { name: '유럽', keywords: ['유럽여행', '유럽 여행'] },
-  { name: '미국', keywords: ['미국여행', '미국 여행'] },
+  { name: '도쿄', keywords: ['도쿄여행', '도쿄 여행'] },
+  { name: '오사카', keywords: ['오사카여행', '오사카 여행'] },
+  { name: '방콕', keywords: ['방콕여행', '방콕 여행'] },
+  { name: '다낭', keywords: ['다낭여행', '다낭 여행'] },
+  { name: '파리', keywords: ['파리여행', '파리 여행'] },
 ];
 
 const DEALS_KEYWORDS = ['항공권 특가', '패키지 특가', '여행 특가'];
@@ -85,11 +85,11 @@ async function fetchNaverNews(clientId: string, clientSecret: string) {
 
 // Fallback static data when no API keys
 const FALLBACK_RANKINGS = [
-  { rank: 1, name: '일본', ratio: 98 },
-  { rank: 2, name: '태국', ratio: 72 },
-  { rank: 3, name: '베트남', ratio: 65 },
-  { rank: 4, name: '유럽', ratio: 54 },
-  { rank: 5, name: '미국', ratio: 41 },
+  { rank: 1, name: '도쿄', ratio: 98 },
+  { rank: 2, name: '오사카', ratio: 85 },
+  { rank: 3, name: '방콕', ratio: 72 },
+  { rank: 4, name: '다낭', ratio: 65 },
+  { rank: 5, name: '파리', ratio: 41 },
 ];
 
 const FALLBACK_DEALS = [
