@@ -66,13 +66,27 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const serviceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const acServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const [searchInput, setSearchInput] = useState('');
+  const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [card, setCard] = useState<PlaceCard | null>(null);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setShowDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const openCard = useCallback((place: google.maps.places.PlaceResult, placeId: string) => {
     setCard({
@@ -106,6 +120,7 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
 
       const service = new google.maps.places.PlacesService(map);
       serviceRef.current = service;
+      acServiceRef.current = new google.maps.places.AutocompleteService();
 
       // Center on destination
       new google.maps.Geocoder().geocode({ address: destination }, (results, status) => {
@@ -137,17 +152,51 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
     return () => { cancelled = true; };
   }, [destination, openCard]);
 
+  function handleSearchInput(value: string) {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.trim().length < 2) { setPredictions([]); setShowDropdown(false); return; }
+    debounceRef.current = setTimeout(() => {
+      if (!acServiceRef.current) return;
+      acServiceRef.current.getPlacePredictions(
+        { input: value, language: 'ko' },
+        (preds, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && preds?.length) {
+            setPredictions(preds);
+            setShowDropdown(true);
+          } else {
+            setPredictions([]);
+            setShowDropdown(false);
+          }
+        }
+      );
+    }, 250);
+  }
+
+  function selectPrediction(pred: google.maps.places.AutocompletePrediction) {
+    setSearchInput(pred.description);
+    setShowDropdown(false);
+    setPredictions([]);
+    // Run text search with the selected suggestion to show multiple pins
+    setTimeout(() => runSearch(pred.description), 0);
+  }
+
   function clearMarkers() {
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
   }
 
   function handleSearch() {
-    if (!searchInput.trim() || !mapRef.current || !serviceRef.current) return;
+    if (searchInput.trim()) runSearch(searchInput);
+  }
+
+  function runSearch(query: string) {
+    if (!query.trim() || !mapRef.current || !serviceRef.current) return;
     setCard(null);
     clearMarkers();
+    setShowDropdown(false);
 
-    serviceRef.current.textSearch({ query: searchInput }, (results, status) => {
+    serviceRef.current.textSearch({ query }, (results, status) => {
       if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) return;
 
       const bounds = new google.maps.LatLngBounds();
@@ -226,16 +275,33 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
       </div>
 
       {/* Search bar */}
-      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0" ref={wrapperRef}>
         <div className="flex gap-1.5">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder={`${destination} 맛집, 카페, 관광지...`}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => handleSearchInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); if (e.key === 'Escape') setShowDropdown(false); }}
+              onFocus={() => predictions.length > 0 && setShowDropdown(true)}
+              placeholder={`${destination} 맛집, 카페, 관광지...`}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            {showDropdown && predictions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
+                {predictions.map((p) => (
+                  <button
+                    key={p.place_id}
+                    onMouseDown={(e) => { e.preventDefault(); selectPrediction(p); }}
+                    className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    <p className="text-xs font-semibold text-gray-800 truncate">{p.structured_formatting?.main_text}</p>
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{p.structured_formatting?.secondary_text}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleSearch}
             className="text-xs bg-blue-500 text-white font-semibold px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
