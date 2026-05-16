@@ -38,11 +38,15 @@ export default function HomePage() {
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState('');
   const [loadingSidebar, setLoadingSidebar] = useState(true);
 
+  // Onboarding popup
+  const [showPopup, setShowPopup] = useState(false);
+
   useEffect(() => {
     const session = getMySession();
     setMySession(session);
     fetchTrips(session);
     fetchSidebar();
+    if (!localStorage.getItem('maps_tip_seen')) setShowPopup(true);
   }, []);
 
   async function fetchTrips(session: { name: string; color: string } | null) {
@@ -138,6 +142,27 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Onboarding popup */}
+      {showPopup && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-10 px-4 pointer-events-none">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 max-w-sm w-full pointer-events-auto animate-in slide-in-from-bottom-4 duration-300">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🗺️</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-800 leading-snug">
+                  이제부터 맛집, 카페, 숙소, 관광지를 구글맵 주소로 편하게 등록하세요!
+                </p>
+                <button
+                  onClick={() => { localStorage.setItem('maps_tip_seen', '1'); setShowPopup(false); }}
+                  className="mt-3 text-xs bg-blue-500 text-white font-semibold px-4 py-2 rounded-xl hover:bg-blue-600 transition-colors"
+                >
+                  네 알겠습니다
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-white border-b border-gray-100 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-2">

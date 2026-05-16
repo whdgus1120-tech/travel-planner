@@ -624,7 +624,7 @@ export default function TripDetailPage() {
                             if (daysLeft > 0) {
                               return (
                                 <span className="text-xs text-gray-300 italic">
-                                  여행 2주 전 공개됩니다
+                                  날씨는 여행 2주전 공개됩니다
                                 </span>
                               );
                             }
