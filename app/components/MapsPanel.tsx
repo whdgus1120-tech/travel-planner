@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface Props {
@@ -9,19 +9,87 @@ interface Props {
   onClose?: () => void;
 }
 
+interface Prediction {
+  place_id: string;
+  description: string;
+  structured_formatting: { main_text: string; secondary_text: string };
+  types: string[];
+}
+
+function mapCategory(types: string[]): string {
+  if (types.some((t) => ['restaurant', 'food', 'cafe', 'bakery', 'bar', 'meal_takeaway', 'meal_delivery'].includes(t))) return 'food';
+  if (types.some((t) => ['lodging', 'hotel'].includes(t))) return 'accommodation';
+  if (types.some((t) => ['shopping_mall', 'store', 'department_store', 'clothing_store', 'convenience_store', 'supermarket'].includes(t))) return 'shopping';
+  if (types.some((t) => ['transit_station', 'airport', 'train_station', 'subway_station', 'bus_station'].includes(t))) return 'transport';
+  return 'sightseeing';
+}
+
 export default function MapsPanel({ tripId, destination, onClose }: Props) {
   const [searchInput, setSearchInput] = useState('');
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [mapSrc, setMapSrc] = useState(
     `https://maps.google.com/maps?q=${encodeURIComponent(destination)}&output=embed&hl=ko`
   );
   const [quickUrl, setQuickUrl] = useState('');
   const [resolving, setResolving] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [added, setAdded] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setShowDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  function handleSearchInput(value: string) {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (value.trim().length < 2) { setPredictions([]); setShowDropdown(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/places?q=${encodeURIComponent(value)}`);
+        const data = await res.json();
+        if (data.predictions?.length) {
+          setPredictions(data.predictions);
+          setShowDropdown(true);
+        } else {
+          setPredictions([]);
+          setShowDropdown(false);
+        }
+      } catch { /* ignore */ }
+    }, 300);
+  }
+
+  async function selectPlace(p: Prediction) {
+    const name = p.structured_formatting?.main_text ?? p.description.split(',')[0];
+    const category = mapCategory(p.types);
+    const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${p.place_id}`;
+
+    setShowDropdown(false);
+    setSearchInput(name);
+    setMapSrc(`https://maps.google.com/maps?q=place_id:${p.place_id}&output=embed&hl=ko`);
+
+    await supabase.from('candidate_places').insert({
+      trip_id: tripId,
+      name,
+      category,
+      notes: '',
+      maps_url: mapsUrl,
+    });
+
+    setAdded(name);
+    setTimeout(() => setAdded(null), 2500);
+  }
 
   function handleSearch() {
-    const q = searchInput.trim();
-    if (!q) return;
-    setMapSrc(`https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed&hl=ko`);
+    if (!searchInput.trim()) return;
+    setShowDropdown(false);
+    setMapSrc(`https://maps.google.com/maps?q=${encodeURIComponent(searchInput)}&output=embed&hl=ko`);
   }
 
   async function addFromUrl(url: string) {
@@ -40,8 +108,8 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
           maps_url: trimmed,
         });
         setQuickUrl('');
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 2000);
+        setAdded(data.name);
+        setTimeout(() => setAdded(null), 2500);
       }
     } catch { /* ignore */ }
     setResolving(false);
@@ -56,27 +124,39 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
           <span className="font-bold text-gray-800 text-sm">Google Maps</span>
         </div>
         {onClose && (
-          <button
-            onClick={onClose}
-            className="text-gray-300 hover:text-gray-500 text-lg leading-none px-1"
-            title="지도 닫기"
-          >
-            ‹
-          </button>
+          <button onClick={onClose} className="text-gray-300 hover:text-gray-500 text-lg leading-none px-1" title="지도 닫기">‹</button>
         )}
       </div>
 
-      {/* Search bar */}
-      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+      {/* Search with autocomplete */}
+      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0" ref={wrapperRef}>
         <div className="flex gap-1.5">
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
-            placeholder={`🔍 장소 검색 (예: 오사카 라멘)`}
-            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => handleSearchInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); if (e.key === 'Escape') setShowDropdown(false); }}
+              onFocus={() => predictions.length > 0 && setShowDropdown(true)}
+              placeholder={`🔍 장소 검색 (예: ${destination} 라멘)`}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            {/* Autocomplete dropdown */}
+            {showDropdown && predictions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
+                {predictions.map((p) => (
+                  <button
+                    key={p.place_id}
+                    onMouseDown={(e) => { e.preventDefault(); selectPlace(p); }}
+                    className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    <p className="text-xs font-semibold text-gray-800 truncate">{p.structured_formatting?.main_text}</p>
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{p.structured_formatting?.secondary_text}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleSearch}
             className="text-xs bg-blue-500 text-white font-semibold px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
@@ -84,6 +164,9 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
             검색
           </button>
         </div>
+        {added && (
+          <p className="text-xs text-green-600 font-semibold mt-1.5 px-0.5">✓ "{added}" 후보지에 추가됐어요</p>
+        )}
       </div>
 
       {/* URL paste → add to candidates */}
@@ -93,18 +176,13 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
             type="url"
             value={quickUrl}
             onChange={(e) => setQuickUrl(e.target.value)}
-            onPaste={(e) => {
-              const text = e.clipboardData.getData('text');
-              setTimeout(() => addFromUrl(text), 50);
-            }}
+            onPaste={(e) => { const text = e.clipboardData.getData('text'); setTimeout(() => addFromUrl(text), 50); }}
             onKeyDown={(e) => { if (e.key === 'Enter') addFromUrl(quickUrl); }}
-            placeholder="📋 장소 링크 붙여넣기 → 후보지에 추가"
+            placeholder="📋 구글맵 링크 직접 붙여넣기"
             className="w-full border border-green-200 rounded-lg px-3 py-2 text-xs bg-green-50 placeholder-green-400 focus:outline-none focus:ring-2 focus:ring-green-300"
           />
           {resolving && <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">분석 중...</span>}
-          {success && <span className="absolute right-2 top-2 text-xs text-green-600 font-semibold">✓ 후보지 추가됨</span>}
         </div>
-        <p className="text-xs text-gray-300 mt-1 px-0.5">장소 클릭 → 공유 → 링크 복사 → 위에 붙여넣기</p>
       </div>
 
       {/* Google Maps iframe */}
