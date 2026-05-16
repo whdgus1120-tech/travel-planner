@@ -40,6 +40,7 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
   const [resolvingUrl, setResolvingUrl] = useState(false);
   const [quickUrl, setQuickUrl] = useState('');
   const [quickResolving, setQuickResolving] = useState(false);
+  const [quickSuccess, setQuickSuccess] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ date: days[0] ?? '', time: '' });
   const [dragOver, setDragOver] = useState(false);
@@ -83,7 +84,6 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
     const trimmed = url.trim();
     if (!trimmed || (!trimmed.includes('google') && !trimmed.includes('goo.gl') && !trimmed.includes('maps.app'))) return;
     setQuickResolving(true);
-    setQuickUrl('');
     try {
       const res = await fetch(`/api/resolve-maps?url=${encodeURIComponent(trimmed)}`);
       const data = await res.json();
@@ -95,6 +95,9 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
           notes: '',
           maps_url: trimmed,
         });
+        setQuickUrl('');
+        setQuickSuccess(true);
+        setTimeout(() => setQuickSuccess(false), 2000);
       }
     } catch { /* ignore */ }
     setQuickResolving(false);
@@ -180,11 +183,14 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
               setTimeout(() => quickAddFromUrl(text), 50);
             }}
             onKeyDown={(e) => { if (e.key === 'Enter') quickAddFromUrl(quickUrl); }}
-            placeholder="🗺️ 구글맵 링크 붙여넣기 → 바로 추가"
-            className="w-full border border-green-200 rounded-lg px-3 py-2 text-xs bg-green-50 placeholder-green-400 focus:outline-none focus:ring-2 focus:ring-green-300"
+            placeholder="🗺️ 구글맵 링크 붙여넣기"
+            className="w-full border border-green-200 rounded-lg px-3 py-2 text-xs bg-green-50 placeholder-green-300 focus:outline-none focus:ring-2 focus:ring-green-300"
           />
           {quickResolving && (
-            <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">추가 중...</span>
+            <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">분석 중...</span>
+          )}
+          {quickSuccess && (
+            <span className="absolute right-2 top-2 text-xs text-green-600 font-semibold">✓ 추가됨</span>
           )}
         </div>
       </div>

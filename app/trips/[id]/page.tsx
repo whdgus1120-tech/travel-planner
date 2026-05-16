@@ -624,7 +624,7 @@ export default function TripDetailPage() {
                             if (daysLeft > 0) {
                               return (
                                 <span className="text-xs text-gray-300 italic">
-                                  🔮 D-{daysLeft}, 설레는 마음으로 기다리는 중
+                                  여행 2주 전 공개됩니다
                                 </span>
                               );
                             }
