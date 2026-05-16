@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { Trip, Member, Activity, ResearchItem, ChatMessage, CATEGORY_CONFIG } from '@/lib/types';
+import { Trip, Member, Activity, ResearchItem, CATEGORY_CONFIG } from '@/lib/types';
 import { getDaysBetween, formatDateKorean, getDayNumber, getTripDurationDays, formatDateShort } from '@/lib/dateUtils';
 import { getMySession, addRecentTrip } from '@/lib/storage';
 import ActivityModal from '@/app/components/ActivityModal';
 import ResearchModal from '@/app/components/ResearchModal';
-import ChatPanel from '@/app/components/ChatPanel';
+import MapsPanel from '@/app/components/MapsPanel';
 import PackingList from '@/app/components/PackingList';
 import BudgetTracker from '@/app/components/BudgetTracker';
 import CandidatesPanel from '@/app/components/CandidatesPanel';
@@ -65,7 +65,6 @@ export default function TripDetailPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [researchItems, setResearchItems] = useState<ResearchItem[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -120,11 +119,10 @@ export default function TripDetailPage() {
     setTrip(tripData as Trip);
     addRecentTrip(id);
 
-    const [membersRes, activitiesRes, researchRes, chatRes, flightsRes, accRes] = await Promise.all([
+    const [membersRes, activitiesRes, researchRes, flightsRes, accRes] = await Promise.all([
       supabase.from('members').select('*').eq('trip_id', id).order('created_at', { ascending: true }),
       supabase.from('activities').select('*').eq('trip_id', id).order('time', { ascending: true }),
       supabase.from('research_items').select('*').eq('trip_id', id).order('created_at', { ascending: false }),
-      supabase.from('chat_messages').select('*').eq('trip_id', id).order('created_at', { ascending: true }),
       supabase.from('trip_flights').select('*').eq('trip_id', id),
       supabase.from('trip_accommodations').select('*').eq('trip_id', id),
     ]);
@@ -132,7 +130,6 @@ export default function TripDetailPage() {
     setMembers((membersRes.data as Member[]) ?? []);
     setActivities((activitiesRes.data as Activity[]) ?? []);
     setResearchItems((researchRes.data as ResearchItem[]) ?? []);
-    setChatMessages((chatRes.data as ChatMessage[]) ?? []);
 
     const dep = (flightsRes.data ?? []).find((f) => f.type === 'departure') as FlightInfo | undefined;
     const ret = (flightsRes.data ?? []).find((f) => f.type === 'return') as FlightInfo | undefined;
@@ -236,20 +233,6 @@ export default function TripDetailPage() {
           }
         }
       )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `trip_id=eq.${id}` },
-        (payload: RealtimePostgresChangesPayload<ChatMessage>) => {
-          setChatMessages((prev) => [...prev, payload.new as ChatMessage]);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'chat_messages', filter: `trip_id=eq.${id}` },
-        (payload: RealtimePostgresChangesPayload<ChatMessage>) => {
-          setChatMessages((prev) => prev.filter((m) => m.id !== (payload.old as ChatMessage).id));
-        }
-      )
       .subscribe();
 
     return () => {
@@ -311,10 +294,6 @@ export default function TripDetailPage() {
     document.addEventListener('mouseup', onUp);
   };
 
-  const handleDeleteChatMessage = async (msgId: string) => {
-    setChatMessages((prev) => prev.filter((m) => m.id !== msgId));
-    await supabase.from('chat_messages').delete().eq('id', msgId);
-  };
 
   const addToCandidate = async (name: string, category: string, notes: string) => {
     const catMap: Record<string, string> = { sightseeing: 'sightseeing', restaurant: 'food', shopping: 'shopping', memo: 'other', food: 'food', transport: 'transport', accommodation: 'accommodation', other: 'other' };
@@ -901,7 +880,7 @@ export default function TripDetailPage() {
                   priority: 'medium',
                   assigned_to: '',
                 }).select().single();
-                if (data) setChatMessages; // realtime handles it
+                if (data) { /* inserted */ }
                 setResearchForm({ title: '', description: '', url: '' });
                 setAddingResearchCat(null);
               }
@@ -1078,7 +1057,7 @@ export default function TripDetailPage() {
           </div>
         )}
 
-        {/* ── Resize handle 2 (between candidates/schedule and chat) ── */}
+        {/* ── Resize handle 2 (between candidates and maps) ── */}
         {chatOpen && (
           <div
             className="hidden lg:flex w-1 flex-shrink-0 bg-gray-200 hover:bg-blue-400 active:bg-blue-500 cursor-col-resize transition-colors select-none"
@@ -1087,63 +1066,30 @@ export default function TripDetailPage() {
           />
         )}
 
-        {/* Right chat panel */}
+        {/* Right maps panel */}
         {chatOpen ? (
           <div
             className="hidden lg:flex flex-shrink-0 flex-col border-l border-gray-100 h-[calc(100vh-theme(spacing.20))] sticky top-20"
             style={{ width: chatWidth }}
           >
-            <div className="flex-1 p-4 overflow-hidden flex flex-col">
-              <ChatPanel
-                tripId={id}
-                mySession={mySession}
-                chatMessages={chatMessages}
-                onDeleteMessage={handleDeleteChatMessage}
-                onClose={() => setChatOpen(false)}
-              />
-            </div>
+            <MapsPanel
+              tripId={id}
+              destination={trip.destination}
+              onClose={() => setChatOpen(false)}
+            />
           </div>
         ) : (
           <div
             className="hidden lg:flex flex-col items-center justify-start pt-4 gap-2 border-l border-gray-100 bg-white h-[calc(100vh-theme(spacing.20))] sticky top-20 cursor-pointer hover:bg-gray-50 transition-colors flex-shrink-0"
             style={{ width: '2.75rem' }}
             onClick={() => setChatOpen(true)}
-            title="채팅 열기"
+            title="지도 열기"
           >
-            <span className="text-lg">💬</span>
-            <span className="text-gray-400 text-xs font-medium" style={{ writingMode: 'vertical-rl' }}>채팅</span>
+            <span className="text-lg">🗺️</span>
+            <span className="text-gray-400 text-xs font-medium" style={{ writingMode: 'vertical-rl' }}>지도</span>
           </div>
         )}
       </div>
-
-      {/* Mobile chat (bottom) */}
-      {mobileChatOpen ? (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-30">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
-            <span className="text-sm font-bold text-gray-700 flex items-center gap-1.5">💬 채팅</span>
-            <button
-              onClick={() => setMobileChatOpen(false)}
-              className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="max-h-64 flex flex-col">
-            <ChatPanel tripId={id} mySession={mySession} chatMessages={chatMessages} onDeleteMessage={handleDeleteChatMessage} />
-          </div>
-        </div>
-      ) : (
-        <div className="lg:hidden fixed bottom-4 right-4 z-30">
-          <button
-            onClick={() => setMobileChatOpen(true)}
-            className="bg-blue-500 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:bg-blue-600 transition-colors"
-          >
-            <span className="text-xl">💬</span>
-          </button>
-        </div>
-      )}
 
       {/* Modals */}
       {showActivityModal && (
