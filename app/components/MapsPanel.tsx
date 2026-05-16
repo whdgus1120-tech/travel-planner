@@ -34,6 +34,8 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
   const [quickUrl, setQuickUrl] = useState('');
   const [resolving, setResolving] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<{ name: string; category: string; mapsUrl: string } | null>(null);
+  const [addingPlace, setAddingPlace] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +67,7 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
     }, 300);
   }
 
-  async function selectPlace(p: Prediction) {
+  function selectPlace(p: Prediction) {
     const name = p.structured_formatting?.main_text ?? p.description.split(',')[0];
     const category = mapCategory(p.types);
     const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${p.place_id}`;
@@ -73,16 +75,23 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
     setShowDropdown(false);
     setSearchInput(name);
     setMapSrc(`https://maps.google.com/maps?q=place_id:${p.place_id}&output=embed&hl=ko`);
+    setSelectedPlace({ name, category, mapsUrl });
+    setAdded(null);
+  }
 
+  async function addSelectedPlace() {
+    if (!selectedPlace) return;
+    setAddingPlace(true);
     await supabase.from('candidate_places').insert({
       trip_id: tripId,
-      name,
-      category,
+      name: selectedPlace.name,
+      category: selectedPlace.category,
       notes: '',
-      maps_url: mapsUrl,
+      maps_url: selectedPlace.mapsUrl,
     });
-
-    setAdded(name);
+    setAdded(selectedPlace.name);
+    setSelectedPlace(null);
+    setAddingPlace(false);
     setTimeout(() => setAdded(null), 2500);
   }
 
@@ -164,6 +173,22 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
             검색
           </button>
         </div>
+        {/* Selected place → add to candidates */}
+        {selectedPlace && (
+          <div className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-800 truncate">{selectedPlace.name}</p>
+              <p className="text-xs text-gray-400">지도에서 확인 후 추가하세요</p>
+            </div>
+            <button
+              onClick={addSelectedPlace}
+              disabled={addingPlace}
+              className="text-xs bg-blue-500 text-white font-semibold px-2.5 py-1.5 rounded-lg hover:bg-blue-600 disabled:opacity-50 flex-shrink-0 whitespace-nowrap"
+            >
+              + 후보지 추가
+            </button>
+          </div>
+        )}
         {added && (
           <p className="text-xs text-green-600 font-semibold mt-1.5 px-0.5">✓ "{added}" 후보지에 추가됐어요</p>
         )}
