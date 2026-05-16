@@ -93,6 +93,7 @@ export default function TripDetailPage() {
   const [editingAccDate, setEditingAccDate] = useState<string | null>(null);
   const [flightForm, setFlightForm] = useState({ airport_from: '', airport_to: '', flight_number: '', departure_time: '', arrival_time: '' });
   const [accForm, setAccForm] = useState({ name: '', address: '' });
+  const [sameAccForAll, setSameAccForAll] = useState(false);
 
   const [mySession, setMySession] = useState<{ name: string; color: string } | null>(null);
   const [weather, setWeather] = useState<Record<string, { max: number; min: number; code: number }>>({});
@@ -329,13 +330,32 @@ export default function TripDetailPage() {
   };
 
   const saveAccommodation = async (date: string) => {
-    const existing = accommodations[date];
-    if (existing?.id) {
-      const { data } = await supabase.from('trip_accommodations').update(accForm).eq('id', existing.id).select().single();
-      if (data) setAccommodations((p) => ({ ...p, [date]: data as AccInfo }));
+    const isFirst = date === days[0];
+
+    if (isFirst && sameAccForAll) {
+      // Save to all non-last days
+      const targets = days.slice(0, -1);
+      const newMap: Record<string, AccInfo> = { ...accommodations };
+      for (const d of targets) {
+        const existing = accommodations[d];
+        if (existing?.id) {
+          const { data } = await supabase.from('trip_accommodations').update(accForm).eq('id', existing.id).select().single();
+          if (data) newMap[d] = data as AccInfo;
+        } else {
+          const { data } = await supabase.from('trip_accommodations').insert({ trip_id: id, date: d, ...accForm }).select().single();
+          if (data) newMap[d] = data as AccInfo;
+        }
+      }
+      setAccommodations(newMap);
     } else {
-      const { data } = await supabase.from('trip_accommodations').insert({ trip_id: id, date, ...accForm }).select().single();
-      if (data) setAccommodations((p) => ({ ...p, [date]: data as AccInfo }));
+      const existing = accommodations[date];
+      if (existing?.id) {
+        const { data } = await supabase.from('trip_accommodations').update(accForm).eq('id', existing.id).select().single();
+        if (data) setAccommodations((p) => ({ ...p, [date]: data as AccInfo }));
+      } else {
+        const { data } = await supabase.from('trip_accommodations').insert({ trip_id: id, date, ...accForm }).select().single();
+        if (data) setAccommodations((p) => ({ ...p, [date]: data as AccInfo }));
+      }
     }
     setEditingAccDate(null);
   };
@@ -772,7 +792,20 @@ export default function TripDetailPage() {
                       {!isLastDay && <div className="border-t border-gray-100 px-5 py-3">
                         {editingAccDate === date ? (
                           <div className="space-y-2">
-                            <p className="text-xs font-bold text-gray-600 mb-1">🏨 숙소 정보</p>
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-bold text-gray-600">🏨 숙소 정보</p>
+                              {isFirstDay && days.length > 2 && (
+                                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                  <div
+                                    onClick={() => setSameAccForAll((v) => !v)}
+                                    className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${sameAccForAll ? 'bg-blue-500 border-blue-500' : 'border-gray-300 hover:border-blue-400'}`}
+                                  >
+                                    {sameAccForAll && <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                                  </div>
+                                  <span className="text-xs text-gray-500">모든 날짜 동일 숙소</span>
+                                </label>
+                              )}
+                            </div>
                             <input
                               value={accForm.name}
                               onChange={(e) => setAccForm((p) => ({ ...p, name: e.target.value }))}
@@ -785,8 +818,13 @@ export default function TripDetailPage() {
                               placeholder="주소 (예: 160-0022 東京都新宿区...)"
                               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                             />
+                            {isFirstDay && sameAccForAll && (
+                              <p className="text-xs text-blue-500 bg-blue-50 rounded-lg px-3 py-1.5">
+                                저장하면 전체 {days.length - 1}개 날짜에 동일하게 적용됩니다
+                              </p>
+                            )}
                             <div className="flex gap-2 justify-end">
-                              <button onClick={() => setEditingAccDate(null)} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-600">취소</button>
+                              <button onClick={() => { setEditingAccDate(null); setSameAccForAll(false); }} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-600">취소</button>
                               <button onClick={() => saveAccommodation(date)} className="text-xs bg-blue-500 text-white font-bold px-4 py-1.5 rounded-lg hover:bg-blue-600">저장</button>
                             </div>
                           </div>
