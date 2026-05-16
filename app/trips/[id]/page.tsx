@@ -735,19 +735,17 @@ export default function TripDetailPage() {
                                                 <span>📍</span>{activity.location}
                                               </p>
                                             )}
-                                            {activity.maps_url && (
-                                              <button
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  const placeId = activity.maps_url?.match(/place_id:([A-Za-z0-9_-]+)/)?.[1];
-                                                  setMapFocus({ name: activity.title + (activity.location ? ' ' + activity.location : ''), placeId });
-                                                  setChatOpen(true);
-                                                }}
-                                                className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 hover:underline"
-                                              >
-                                                🗺️ 지도 보기
-                                              </button>
-                                            )}
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                const placeId = activity.maps_url?.match(/place_id:([A-Za-z0-9_-]+)/)?.[1];
+                                                setMapFocus({ name: activity.title + (activity.location ? ' ' + activity.location : ''), placeId });
+                                                setChatOpen(true);
+                                              }}
+                                              className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 hover:underline"
+                                            >
+                                              🗺️ 지도 보기
+                                            </button>
                                             {activity.notes && (
                                               <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{activity.notes}</p>
                                             )}
@@ -875,6 +873,16 @@ export default function TripDetailPage() {
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-700">{acc.name}</p>
                                 {acc.address && <p className="text-xs text-gray-400 truncate">📍 {acc.address}</p>}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMapFocus({ name: acc.name + (acc.address ? ' ' + acc.address : '') });
+                                    setChatOpen(true);
+                                  }}
+                                  className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 hover:underline"
+                                >
+                                  🗺️ 지도 보기
+                                </button>
                               </div>
                             ) : (
                               <span className="text-sm text-gray-300 group-hover:text-gray-400 transition-colors">숙소 정보를 입력하세요</span>
