@@ -608,14 +608,28 @@ export default function TripDetailPage() {
                             Day {dayNum}
                           </span>
                           <span className="font-semibold text-gray-800">{formatDateKorean(date)}</span>
-                          {weather[date] && (
-                            <span className="flex items-center gap-1 text-xs text-gray-500 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">
-                              <span>{getWeatherEmoji(weather[date].code)}</span>
-                              <span className="font-semibold text-orange-500">{weather[date].max}°</span>
-                              <span className="text-gray-400">/</span>
-                              <span className="text-blue-400">{weather[date].min}°</span>
-                            </span>
-                          )}
+                          {(() => {
+                            const w = weather[date];
+                            if (w) {
+                              return (
+                                <span className="flex items-center gap-1 text-xs text-gray-500 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded-full">
+                                  <span>{getWeatherEmoji(w.code)}</span>
+                                  <span className="font-semibold text-orange-500">{w.max}°</span>
+                                  <span className="text-gray-400">/</span>
+                                  <span className="text-blue-400">{w.min}°</span>
+                                </span>
+                              );
+                            }
+                            const daysLeft = Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
+                            if (daysLeft > 0) {
+                              return (
+                                <span className="text-xs text-gray-300 italic">
+                                  🔮 D-{daysLeft}, 설레는 마음으로 기다리는 중
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           {dayActivities.length > 0 && (
                             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                               {dayActivities.length}개
