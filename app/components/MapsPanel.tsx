@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface Props {
@@ -9,11 +9,13 @@ interface Props {
   onClose?: () => void;
 }
 
-interface Prediction {
-  place_id: string;
-  description: string;
-  structured_formatting: { main_text: string; secondary_text: string };
+interface PlaceCard {
+  name: string;
+  rating?: number;
+  address?: string;
   types: string[];
+  placeId: string;
+  mapsUrl: string;
 }
 
 function mapCategory(types: string[]): string {
@@ -24,104 +26,190 @@ function mapCategory(types: string[]): string {
   return 'sightseeing';
 }
 
-export default function MapsPanel({ tripId, destination, onClose }: Props) {
-  const [searchInput, setSearchInput] = useState('');
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [mapSrc, setMapSrc] = useState(
-    `https://maps.google.com/maps?q=${encodeURIComponent(destination)}&output=embed&hl=ko`
-  );
-  const [quickUrl, setQuickUrl] = useState('');
-  const [resolving, setResolving] = useState(false);
-  const [added, setAdded] = useState<string | null>(null);
-  const [selectedPlace, setSelectedPlace] = useState<{ name: string; category: string; mapsUrl: string } | null>(null);
-  const [addingPlace, setAddingPlace] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+const CAT_COLOR: Record<string, string> = {
+  food: '#EF4444',
+  accommodation: '#8B5CF6',
+  shopping: '#F59E0B',
+  transport: '#6B7280',
+  sightseeing: '#3B82F6',
+};
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setShowDropdown(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+declare global {
+  interface Window {
+    __gmCb?: () => void;
+    google: typeof google;
+  }
+}
+
+function loadGoogleMaps(apiKey: string): Promise<void> {
+  return new Promise((resolve) => {
+    // Already loaded
+    if (window.google?.maps?.places) { resolve(); return; }
+
+    // Already loading — attach to existing callback
+    if (document.querySelector('script[data-gm-loader]')) {
+      const prev = window.__gmCb;
+      window.__gmCb = () => { prev?.(); resolve(); };
+      return;
+    }
+
+    window.__gmCb = () => resolve();
+    const s = document.createElement('script');
+    s.dataset.gmLoader = '1';
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ko&callback=__gmCb`;
+    s.async = true;
+    document.head.appendChild(s);
+  });
+}
+
+export default function MapsPanel({ tripId, destination, onClose }: Props) {
+  const mapDivRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const serviceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const markersRef = useRef<google.maps.Marker[]>([]);
+
+  const [searchInput, setSearchInput] = useState('');
+  const [card, setCard] = useState<PlaceCard | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  const openCard = useCallback((place: google.maps.places.PlaceResult, placeId: string) => {
+    setCard({
+      name: place.name ?? '',
+      rating: place.rating,
+      address: place.formatted_address ?? (place as google.maps.places.PlaceResult & { vicinity?: string }).vicinity,
+      types: place.types ?? [],
+      placeId,
+      mapsUrl: place.url ?? `https://www.google.com/maps/place/?q=place_id:${placeId}`,
+    });
   }, []);
 
-  function handleSearchInput(value: string) {
-    setSearchInput(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (value.trim().length < 2) { setPredictions([]); setShowDropdown(false); return; }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/places?q=${encodeURIComponent(value)}`);
-        const data = await res.json();
-        if (data.predictions?.length) {
-          setPredictions(data.predictions);
-          setShowDropdown(true);
-        } else {
-          setPredictions([]);
-          setShowDropdown(false);
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (!apiKey || !mapDivRef.current) return;
+
+    let cancelled = false;
+
+    loadGoogleMaps(apiKey).then(() => {
+      if (cancelled || !mapDivRef.current) return;
+
+      const map = new google.maps.Map(mapDivRef.current, {
+        zoom: 14,
+        center: { lat: 34.6937, lng: 135.5023 },
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        gestureHandling: 'greedy',
+      });
+      mapRef.current = map;
+
+      const service = new google.maps.places.PlacesService(map);
+      serviceRef.current = service;
+
+      // Center on destination
+      new google.maps.Geocoder().geocode({ address: destination }, (results, status) => {
+        if (status === 'OK' && results?.[0]?.geometry?.location) {
+          map.setCenter(results[0].geometry.location);
         }
-      } catch { /* ignore */ }
-    }, 300);
-  }
+      });
 
-  function selectPlace(p: Prediction) {
-    const name = p.structured_formatting?.main_text ?? p.description.split(',')[0];
-    const category = mapCategory(p.types);
-    const mapsUrl = `https://www.google.com/maps/place/?q=place_id:${p.place_id}`;
+      // Click on any POI on the map
+      map.addListener('click', (event: google.maps.MapMouseEvent & { placeId?: string }) => {
+        if (!event.placeId) { setCard(null); return; }
+        event.stop?.();
+        service.getDetails(
+          {
+            placeId: event.placeId,
+            fields: ['name', 'rating', 'formatted_address', 'types', 'url'],
+          },
+          (place, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+              openCard(place, event.placeId!);
+            }
+          }
+        );
+      });
 
-    setShowDropdown(false);
-    setSearchInput(name);
-    setMapSrc(`https://maps.google.com/maps?q=place_id:${p.place_id}&output=embed&hl=ko`);
-    setSelectedPlace({ name, category, mapsUrl });
-    setAdded(null);
-  }
-
-  async function addSelectedPlace() {
-    if (!selectedPlace) return;
-    setAddingPlace(true);
-    await supabase.from('candidate_places').insert({
-      trip_id: tripId,
-      name: selectedPlace.name,
-      category: selectedPlace.category,
-      notes: '',
-      maps_url: selectedPlace.mapsUrl,
+      setMapReady(true);
     });
-    setAdded(selectedPlace.name);
-    setSelectedPlace(null);
-    setAddingPlace(false);
-    setTimeout(() => setAdded(null), 2500);
+
+    return () => { cancelled = true; };
+  }, [destination, openCard]);
+
+  function clearMarkers() {
+    markersRef.current.forEach((m) => m.setMap(null));
+    markersRef.current = [];
   }
 
   function handleSearch() {
-    if (!searchInput.trim()) return;
-    setShowDropdown(false);
-    setMapSrc(`https://maps.google.com/maps?q=${encodeURIComponent(searchInput)}&output=embed&hl=ko`);
+    if (!searchInput.trim() || !mapRef.current || !serviceRef.current) return;
+    setCard(null);
+    clearMarkers();
+
+    serviceRef.current.textSearch({ query: searchInput }, (results, status) => {
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results?.length) return;
+
+      const bounds = new google.maps.LatLngBounds();
+
+      results.slice(0, 20).forEach((place, i) => {
+        if (!place.geometry?.location) return;
+
+        const color = CAT_COLOR[mapCategory(place.types ?? [])] ?? '#3B82F6';
+
+        const marker = new google.maps.Marker({
+          position: place.geometry.location,
+          map: mapRef.current!,
+          title: place.name,
+          label: { text: String(i + 1), color: '#fff', fontSize: '11px', fontWeight: 'bold' },
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 14,
+            fillColor: color,
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2,
+          },
+          zIndex: 100 - i,
+        });
+
+        marker.addListener('click', () => {
+          openCard(
+            {
+              name: place.name,
+              rating: place.rating,
+              formatted_address: (place as google.maps.places.PlaceResult & { vicinity?: string }).vicinity ?? place.formatted_address,
+              types: place.types,
+              url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
+            } as google.maps.places.PlaceResult,
+            place.place_id!
+          );
+        });
+
+        markersRef.current.push(marker);
+        bounds.extend(place.geometry.location);
+      });
+
+      if (markersRef.current.length > 0) {
+        mapRef.current!.fitBounds(bounds);
+      }
+    });
   }
 
-  async function addFromUrl(url: string) {
-    const trimmed = url.trim();
-    if (!trimmed || (!trimmed.includes('google') && !trimmed.includes('goo.gl') && !trimmed.includes('maps.app'))) return;
-    setResolving(true);
-    try {
-      const res = await fetch(`/api/resolve-maps?url=${encodeURIComponent(trimmed)}`);
-      const data = await res.json();
-      if (data.name) {
-        await supabase.from('candidate_places').insert({
-          trip_id: tripId,
-          name: data.name,
-          category: data.category ?? 'sightseeing',
-          notes: '',
-          maps_url: trimmed,
-        });
-        setQuickUrl('');
-        setAdded(data.name);
-        setTimeout(() => setAdded(null), 2500);
-      }
-    } catch { /* ignore */ }
-    setResolving(false);
+  async function addToCandidate() {
+    if (!card) return;
+    setAdding(true);
+    await supabase.from('candidate_places').insert({
+      trip_id: tripId,
+      name: card.name,
+      category: mapCategory(card.types),
+      notes: '',
+      maps_url: card.mapsUrl,
+    });
+    setAdded(card.name);
+    setCard(null);
+    setAdding(false);
+    setTimeout(() => setAdded(null), 2500);
   }
 
   return (
@@ -137,35 +225,17 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
         )}
       </div>
 
-      {/* Search with autocomplete */}
-      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0" ref={wrapperRef}>
+      {/* Search bar */}
+      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
         <div className="flex gap-1.5">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => handleSearchInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); if (e.key === 'Escape') setShowDropdown(false); }}
-              onFocus={() => predictions.length > 0 && setShowDropdown(true)}
-              placeholder={`🔍 장소 검색 (예: ${destination} 라멘)`}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-            {/* Autocomplete dropdown */}
-            {showDropdown && predictions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-                {predictions.map((p) => (
-                  <button
-                    key={p.place_id}
-                    onMouseDown={(e) => { e.preventDefault(); selectPlace(p); }}
-                    className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0"
-                  >
-                    <p className="text-xs font-semibold text-gray-800 truncate">{p.structured_formatting?.main_text}</p>
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{p.structured_formatting?.secondary_text}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder={`${destination} 맛집, 카페, 관광지...`}
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
           <button
             onClick={handleSearch}
             className="text-xs bg-blue-500 text-white font-semibold px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
@@ -173,54 +243,53 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
             검색
           </button>
         </div>
-        {/* Selected place → add to candidates */}
-        {selectedPlace && (
-          <div className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+        {added && (
+          <p className="text-xs text-green-600 font-semibold mt-1.5 px-0.5">✓ &quot;{added}&quot; 후보지에 추가됐어요</p>
+        )}
+      </div>
+
+      {/* Place card — appears when a pin or POI is clicked */}
+      {card && (
+        <div className="px-3 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+          <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-800 truncate">{selectedPlace.name}</p>
-              <p className="text-xs text-gray-400">지도에서 확인 후 추가하세요</p>
+              <p className="text-sm font-bold text-gray-800 leading-tight">{card.name}</p>
+              {card.rating !== undefined && (
+                <p className="text-xs text-amber-500 font-semibold mt-0.5">
+                  ★ {card.rating.toFixed(1)}
+                </p>
+              )}
+              {card.address && (
+                <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{card.address}</p>
+              )}
             </div>
-            <button
-              onClick={addSelectedPlace}
-              disabled={addingPlace}
-              className="text-xs bg-blue-500 text-white font-semibold px-2.5 py-1.5 rounded-lg hover:bg-blue-600 disabled:opacity-50 flex-shrink-0 whitespace-nowrap"
-            >
-              + 후보지 추가
-            </button>
+            <div className="flex flex-col gap-1.5 flex-shrink-0">
+              <button
+                onClick={addToCandidate}
+                disabled={adding}
+                className="text-xs bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-600 disabled:opacity-50 whitespace-nowrap"
+              >
+                {adding ? '추가 중...' : '+ 후보지 추가'}
+              </button>
+              <button onClick={() => setCard(null)} className="text-xs text-gray-400 hover:text-gray-600 text-center">
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Map */}
+      <div className="flex-1 overflow-hidden relative">
+        <div ref={mapDivRef} className="w-full h-full" />
+        {!mapReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <div className="text-2xl mb-2">🗺️</div>
+              <p className="text-xs text-gray-400">지도 불러오는 중...</p>
+            </div>
           </div>
         )}
-        {added && (
-          <p className="text-xs text-green-600 font-semibold mt-1.5 px-0.5">✓ "{added}" 후보지에 추가됐어요</p>
-        )}
-      </div>
-
-      {/* URL paste → add to candidates */}
-      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
-        <div className="relative">
-          <input
-            type="url"
-            value={quickUrl}
-            onChange={(e) => setQuickUrl(e.target.value)}
-            onPaste={(e) => { const text = e.clipboardData.getData('text'); setTimeout(() => addFromUrl(text), 50); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') addFromUrl(quickUrl); }}
-            placeholder="📋 구글맵 링크 직접 붙여넣기"
-            className="w-full border border-green-200 rounded-lg px-3 py-2 text-xs bg-green-50 placeholder-green-400 focus:outline-none focus:ring-2 focus:ring-green-300"
-          />
-          {resolving && <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">분석 중...</span>}
-        </div>
-      </div>
-
-      {/* Google Maps iframe */}
-      <div className="flex-1 overflow-hidden">
-        <iframe
-          key={mapSrc}
-          src={mapSrc}
-          className="w-full h-full border-0"
-          allowFullScreen
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          title="Google Maps"
-        />
       </div>
     </div>
   );
