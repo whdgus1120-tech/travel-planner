@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface PackingItem {
@@ -59,6 +59,7 @@ export default function PackingList({ tripId }: Props) {
   const [filter, setFilter] = useState<'all' | 'unchecked' | 'checked'>('all');
   const [inlineCategory, setInlineCategory] = useState<string | null>(null);
   const [inlineName, setInlineName] = useState('');
+  const insertingRef = useRef(false);
 
   useEffect(() => {
     loadItems();
@@ -68,7 +69,12 @@ export default function PackingList({ tripId }: Props) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'packing_items', filter: `trip_id=eq.${tripId}` },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setItems((prev) => [...prev, payload.new as PackingItem]);
+            // insertDefaults 중 realtime 이벤트로 중복 추가되는 것 방지
+            if (insertingRef.current) return;
+            setItems((prev) => {
+              if (prev.find((i) => i.id === (payload.new as PackingItem).id)) return prev;
+              return [...prev, payload.new as PackingItem];
+            });
           } else if (payload.eventType === 'UPDATE') {
             setItems((prev) => prev.map((i) => i.id === payload.new.id ? payload.new as PackingItem : i));
           } else if (payload.eventType === 'DELETE') {
@@ -85,9 +91,27 @@ export default function PackingList({ tripId }: Props) {
       .from('packing_items').select('*').eq('trip_id', tripId).order('created_at');
     if (!error && data) {
       if (data.length === 0) {
-        await insertDefaults();
+        if (!insertingRef.current) {
+          insertingRef.current = true;
+          await insertDefaults();
+          insertingRef.current = false;
+        }
       } else {
-        setItems(data);
+        // DB에 중복이 있으면 자동 정리 (name+category 기준, 먼저 생성된 것 유지)
+        const seen = new Map<string, string>();
+        const toDelete: string[] = [];
+        data.forEach((item) => {
+          const key = `${item.category}:${item.name}`;
+          if (seen.has(key)) {
+            toDelete.push(item.id);
+          } else {
+            seen.set(key, item.id);
+          }
+        });
+        if (toDelete.length > 0) {
+          await supabase.from('packing_items').delete().in('id', toDelete);
+        }
+        setItems(data.filter((item) => !toDelete.includes(item.id)));
       }
     }
     setLoading(false);
