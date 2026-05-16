@@ -45,8 +45,11 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
   const [assignForm, setAssignForm] = useState({ date: days[0] ?? '', time: '' });
   const [dragOver, setDragOver] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const ITEMS_PER_PAGE = 8;
 
   useEffect(() => {
     supabase.from('candidate_places').select('*').eq('trip_id', tripId).order('created_at').then(({ data }) => {
@@ -79,6 +82,8 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
 
     return () => { supabase.removeChannel(channel); };
   }, [tripId]);
+
+  useEffect(() => { setCurrentPage(1); }, [filterText]);
 
   async function resolveMapsUrl(url: string) {
     if (!url || (!url.includes('google') && !url.includes('goo.gl') && !url.includes('maps.app'))) return;
@@ -180,16 +185,21 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
     ? candidates.filter((c) => c.name.toLowerCase().includes(filterText.toLowerCase()))
     : candidates;
 
+  const totalPages = Math.max(1, Math.ceil(displayed.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginated = displayed.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+
   const getCatConfig = (key: string) => CANDIDATE_CATS.find((c) => c.key === key) ?? CANDIDATE_CATS[CANDIDATE_CATS.length - 1];
   const getCatColor = (key: string) => CATEGORY_CONFIG[key as keyof typeof CATEGORY_CONFIG]?.color ?? 'bg-gray-100 text-gray-700';
 
   return (
     <div
       className={`flex flex-col h-full relative transition-colors ${dragOver ? 'bg-purple-50' : ''}`}
-      onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+      onDragEnter={(e) => { if (dragItemId) return; e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e) => { if (dragItemId) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
       onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
       onDrop={(e) => {
+        if (dragItemId) return;
         e.preventDefault();
         setDragOver(false);
         try {
@@ -331,7 +341,7 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
             <p className="text-xs">&quot;{filterText}&quot; 검색 결과 없음</p>
           </div>
         ) : (
-          displayed.map((c) => {
+          paginated.map((c) => {
             const cat = getCatConfig(c.category);
             const isAssigning = assigningId === c.id;
             return (
@@ -418,6 +428,30 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
               </div>
             );
           })
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-1 pb-2 px-1">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-2 py-1 rounded hover:bg-gray-100"
+            >
+              ← 이전
+            </button>
+            <span className="text-xs text-gray-400">
+              {safePage} / {totalPages}페이지
+              <span className="ml-1 text-gray-300">({displayed.length}개)</span>
+            </span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-2 py-1 rounded hover:bg-gray-100"
+            >
+              다음 →
+            </button>
+          </div>
         )}
       </div>
     </div>
