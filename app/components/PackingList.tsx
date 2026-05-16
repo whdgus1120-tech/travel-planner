@@ -57,6 +57,8 @@ export default function PackingList({ tripId }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unchecked' | 'checked'>('all');
+  const [inlineCategory, setInlineCategory] = useState<string | null>(null);
+  const [inlineName, setInlineName] = useState('');
 
   useEffect(() => {
     loadItems();
@@ -121,12 +123,24 @@ export default function PackingList({ tripId }: Props) {
     setAdding(false);
   }
 
+  async function addInlineItem(category: string) {
+    if (!inlineName.trim()) { setInlineCategory(null); setInlineName(''); return; }
+    const { data } = await supabase.from('packing_items').insert({
+      trip_id: tripId, category, name: inlineName.trim(),
+      is_checked: false, is_custom: true,
+    }).select().single();
+    if (data) setItems((prev) => [...prev, data]);
+    setInlineName('');
+    setInlineCategory(null);
+  }
+
+  // Show all categories (even empty) when filter is 'all', so user can always add to any category
   const grouped = CATEGORIES.reduce((acc, cat) => {
     const catItems = items.filter((i) => i.category === cat);
     const filtered = filter === 'all' ? catItems
       : filter === 'unchecked' ? catItems.filter((i) => !i.is_checked)
       : catItems.filter((i) => i.is_checked);
-    if (filtered.length > 0) acc[cat] = filtered;
+    if (filter === 'all' || filtered.length > 0) acc[cat] = filtered;
     return acc;
   }, {} as Record<string, PackingItem[]>);
 
@@ -226,7 +240,34 @@ export default function PackingList({ tripId }: Props) {
               <span className="text-xs text-gray-400 ml-auto">
                 {catItems.filter((i) => i.is_checked).length}/{catItems.length}
               </span>
+              <button
+                onClick={() => { setInlineCategory(cat); setInlineName(''); }}
+                className="ml-1 w-5 h-5 rounded-full bg-gray-100 hover:bg-blue-100 text-gray-400 hover:text-blue-500 flex items-center justify-center text-xs font-bold transition-colors"
+                title={`${cat}에 항목 추가`}
+              >+</button>
             </div>
+            {inlineCategory === cat && (
+              <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 flex gap-2">
+                <input
+                  type="text"
+                  value={inlineName}
+                  onChange={(e) => setInlineName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addInlineItem(cat); if (e.key === 'Escape') { setInlineCategory(null); setInlineName(''); } }}
+                  onBlur={() => { if (!inlineName.trim()) { setInlineCategory(null); } }}
+                  placeholder="항목 이름 입력 후 Enter"
+                  autoFocus
+                  className="flex-1 text-xs border border-blue-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
+                />
+                <button
+                  onClick={() => addInlineItem(cat)}
+                  className="text-xs bg-blue-500 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-600 font-semibold"
+                >추가</button>
+                <button
+                  onClick={() => { setInlineCategory(null); setInlineName(''); }}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-1"
+                >✕</button>
+              </div>
+            )}
             <div className="divide-y divide-gray-50">
               {catItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 group">
