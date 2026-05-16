@@ -649,6 +649,17 @@ export default function TripDetailPage() {
                                                 <span>📍</span>{activity.location}
                                               </p>
                                             )}
+                                            {activity.maps_url && (
+                                              <a
+                                                href={activity.maps_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 hover:underline"
+                                              >
+                                                🗺️ 지도 보기
+                                              </a>
+                                            )}
                                             {activity.notes && (
                                               <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{activity.notes}</p>
                                             )}

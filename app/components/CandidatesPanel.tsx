@@ -11,6 +11,7 @@ interface Candidate {
   name: string;
   category: string;
   notes: string;
+  maps_url: string;
   created_at: string;
 }
 
@@ -34,8 +35,9 @@ interface Props {
 export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedule, onReceiveActivity }: Props) {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', category: 'sightseeing', notes: '' });
+  const [form, setForm] = useState({ name: '', category: 'sightseeing', notes: '', maps_url: '' });
   const [adding, setAdding] = useState(false);
+  const [resolvingUrl, setResolvingUrl] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ date: days[0] ?? '', time: '' });
   const [dragOver, setDragOver] = useState(false);
@@ -57,11 +59,35 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
     return () => { supabase.removeChannel(channel); };
   }, [tripId]);
 
+  async function resolveMapsUrl(url: string) {
+    if (!url || (!url.includes('google') && !url.includes('goo.gl') && !url.includes('maps.app'))) return;
+    setResolvingUrl(true);
+    try {
+      const res = await fetch(`/api/resolve-maps?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (data.name) {
+        setForm((p) => ({
+          ...p,
+          name: p.name.trim() ? p.name : data.name,
+          category: data.category ?? p.category,
+          maps_url: url,
+        }));
+      }
+    } catch { /* ignore */ }
+    setResolvingUrl(false);
+  }
+
   async function addCandidate() {
     if (!form.name.trim()) return;
     setAdding(true);
-    await supabase.from('candidate_places').insert({ trip_id: tripId, ...form, name: form.name.trim() });
-    setForm({ name: '', category: 'sightseeing', notes: '' });
+    await supabase.from('candidate_places').insert({
+      trip_id: tripId,
+      name: form.name.trim(),
+      category: form.category,
+      notes: form.notes,
+      maps_url: form.maps_url,
+    });
+    setForm({ name: '', category: 'sightseeing', notes: '', maps_url: '' });
     setShowForm(false);
     setAdding(false);
   }
@@ -101,6 +127,7 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
           <span className="bg-purple-100 text-purple-600 text-sm font-semibold px-4 py-2 rounded-xl shadow">후보지로 이동</span>
         </div>
       )}
+
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -122,12 +149,31 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
       {showForm && (
         <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
           <div className="space-y-2">
+            {/* Google Maps URL */}
+            <div className="relative">
+              <input
+                type="url"
+                value={form.maps_url}
+                onChange={(e) => setForm((p) => ({ ...p, maps_url: e.target.value }))}
+                onBlur={(e) => resolveMapsUrl(e.target.value)}
+                onPaste={(e) => {
+                  const text = e.clipboardData.getData('text');
+                  setTimeout(() => resolveMapsUrl(text), 50);
+                }}
+                placeholder="🗺️ Google Maps 링크 붙여넣기 (선택)"
+                className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-300"
+              />
+              {resolvingUrl && (
+                <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">분석중...</span>
+              )}
+            </div>
+
             <input
               type="text"
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               onKeyDown={(e) => e.key === 'Enter' && addCandidate()}
-              placeholder="장소 이름"
+              placeholder="장소 이름 *"
               autoFocus
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
@@ -188,6 +234,17 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 leading-tight">{c.name}</p>
                     {c.notes && <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{c.notes}</p>}
+                    {c.maps_url && (
+                      <a
+                        href={c.maps_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-1 hover:underline"
+                      >
+                        🗺️ 지도 보기
+                      </a>
+                    )}
                   </div>
                   <button
                     onClick={() => deleteCandidate(c.id)}

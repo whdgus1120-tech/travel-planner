@@ -26,6 +26,7 @@ export interface Activity {
   title: string;
   location: string;
   notes: string;
+  maps_url: string;
   category: 'food' | 'sightseeing' | 'accommodation' | 'transport' | 'other';
   assigned_to: string[];
   created_at: string;

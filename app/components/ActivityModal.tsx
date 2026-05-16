@@ -26,10 +26,12 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
     category: 'other' as Activity['category'],
     location: '',
     notes: '',
+    maps_url: '',
     assigned_to: [] as string[],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [resolvingUrl, setResolvingUrl] = useState(false);
 
   useEffect(() => {
     if (activity) {
@@ -39,14 +41,33 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
         category: activity.category,
         location: activity.location,
         notes: activity.notes,
+        maps_url: activity.maps_url ?? '',
         assigned_to: activity.assigned_to,
       });
     } else {
-      setForm({ time: '', title: '', category: 'other', location: '', notes: '', assigned_to: [] });
+      setForm({ time: '', title: '', category: 'other', location: '', notes: '', maps_url: '', assigned_to: [] });
     }
   }, [activity]);
 
   const set = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }));
+
+  const resolveMapsUrl = async (url: string) => {
+    if (!url || (!url.includes('google') && !url.includes('goo.gl') && !url.includes('maps.app'))) return;
+    setResolvingUrl(true);
+    try {
+      const res = await fetch(`/api/resolve-maps?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (data.name) {
+        setForm((p) => ({
+          ...p,
+          title: p.title.trim() ? p.title : data.name,
+          category: (data.category as Activity['category']) ?? p.category,
+          maps_url: url,
+        }));
+      }
+    } catch { /* ignore */ }
+    setResolvingUrl(false);
+  };
 
   const toggleAssigned = (name: string) => {
     setForm((p) => ({
@@ -75,6 +96,7 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
             category: form.category,
             location: form.location.trim(),
             notes: form.notes.trim(),
+            maps_url: form.maps_url.trim(),
             assigned_to: form.assigned_to,
           })
           .eq('id', activity.id);
@@ -90,6 +112,7 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
             category: form.category,
             location: form.location.trim(),
             notes: form.notes.trim(),
+            maps_url: form.maps_url.trim(),
             assigned_to: form.assigned_to,
           });
         if (err) throw err;
@@ -168,9 +191,39 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
               </div>
             </div>
 
+            {/* Google Maps URL */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                🗺️ Google Maps 링크
+              </label>
+              <div className="relative">
+                <input
+                  type="url"
+                  value={form.maps_url}
+                  onChange={(e) => set('maps_url', e.target.value)}
+                  onBlur={(e) => resolveMapsUrl(e.target.value)}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData('text');
+                    setTimeout(() => resolveMapsUrl(text), 50);
+                  }}
+                  placeholder="붙여넣으면 이름·카테고리 자동 입력"
+                  className="w-full border border-green-200 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-green-300"
+                />
+                {resolvingUrl && (
+                  <span className="absolute right-3 top-3 text-xs text-green-500 animate-pulse">분석중...</span>
+                )}
+              </div>
+              {form.maps_url && (
+                <a href={form.maps_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-green-600 hover:underline mt-1 inline-block">
+                  🗺️ 지도 미리보기
+                </a>
+              )}
+            </div>
+
             {/* Location */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">장소</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">장소명</label>
               <input
                 type="text"
                 value={form.location}
