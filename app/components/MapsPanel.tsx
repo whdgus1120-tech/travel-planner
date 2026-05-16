@@ -8,6 +8,7 @@ interface Props {
   destination: string;
   onClose?: () => void;
   onSelectAccommodation?: (name: string, address: string) => void;
+  externalFocus?: { name: string; placeId?: string } | null;
 }
 
 interface PlaceCard {
@@ -63,7 +64,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   });
 }
 
-export default function MapsPanel({ tripId, destination, onClose, onSelectAccommodation }: Props) {
+export default function MapsPanel({ tripId, destination, onClose, onSelectAccommodation, externalFocus }: Props) {
   const mapDivRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const serviceRef = useRef<google.maps.places.PlacesService | null>(null);
@@ -191,7 +192,7 @@ export default function MapsPanel({ tripId, destination, onClose, onSelectAccomm
     if (searchInput.trim()) runSearch(searchInput);
   }
 
-  function runSearch(query: string) {
+  const runSearch = useCallback((query: string) => {
     if (!query.trim() || !mapRef.current || !serviceRef.current) return;
     setCard(null);
     clearMarkers();
@@ -244,7 +245,39 @@ export default function MapsPanel({ tripId, destination, onClose, onSelectAccomm
         mapRef.current!.fitBounds(bounds);
       }
     });
-  }
+  }, [openCard]);
+
+  // Focus a specific place from outside (e.g. clicking "지도 보기" in schedule)
+  useEffect(() => {
+    if (!externalFocus || !mapReady || !serviceRef.current) return;
+    if (externalFocus.placeId) {
+      serviceRef.current.getDetails(
+        { placeId: externalFocus.placeId, fields: ['name', 'rating', 'formatted_address', 'types', 'url', 'geometry'] },
+        (place, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+            openCard(place, externalFocus.placeId!);
+            if (place.geometry?.location) {
+              clearMarkers();
+              const color = CAT_COLOR[mapCategory(place.types ?? [])] ?? '#3B82F6';
+              const marker = new google.maps.Marker({
+                position: place.geometry.location,
+                map: mapRef.current!,
+                title: place.name,
+                label: { text: '★', color: '#fff', fontSize: '11px', fontWeight: 'bold' },
+                icon: { path: google.maps.SymbolPath.CIRCLE, scale: 16, fillColor: color, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 },
+                zIndex: 200,
+              });
+              markersRef.current.push(marker);
+              mapRef.current?.panTo(place.geometry.location);
+              mapRef.current?.setZoom(17);
+            }
+          }
+        }
+      );
+    } else {
+      runSearch(externalFocus.name);
+    }
+  }, [externalFocus, mapReady, openCard, runSearch]);
 
   async function addToCandidate() {
     if (!card) return;

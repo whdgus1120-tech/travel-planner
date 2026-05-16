@@ -96,6 +96,7 @@ export default function TripDetailPage() {
   const [sameAccForAll, setSameAccForAll] = useState(false);
   const [accUrlInput, setAccUrlInput] = useState('');
   const [accUrlResolving, setAccUrlResolving] = useState(false);
+  const [mapFocus, setMapFocus] = useState<{ name: string; placeId?: string } | null>(null);
 
   const [mySession, setMySession] = useState<{ name: string; color: string } | null>(null);
   const [weather, setWeather] = useState<Record<string, { max: number; min: number; code: number }>>({});
@@ -735,15 +736,17 @@ export default function TripDetailPage() {
                                               </p>
                                             )}
                                             {activity.maps_url && (
-                                              <a
-                                                href={activity.maps_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
+                                              <button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  const placeId = activity.maps_url?.match(/place_id:([A-Za-z0-9_-]+)/)?.[1];
+                                                  setMapFocus({ name: activity.title + (activity.location ? ' ' + activity.location : ''), placeId });
+                                                  setChatOpen(true);
+                                                }}
                                                 className="text-xs text-green-600 hover:text-green-700 flex items-center gap-1 mt-0.5 hover:underline"
                                               >
                                                 🗺️ 지도 보기
-                                              </a>
+                                              </button>
                                             )}
                                             {activity.notes && (
                                               <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{activity.notes}</p>
@@ -1151,6 +1154,7 @@ export default function TripDetailPage() {
               onSelectAccommodation={editingAccDate !== null ? (name, address) => {
                 setAccForm({ name, address });
               } : undefined}
+              externalFocus={mapFocus}
             />
           </div>
         ) : (
