@@ -10,6 +10,7 @@ import { getMySession, addRecentTrip } from '@/lib/storage';
 import ActivityModal from '@/app/components/ActivityModal';
 import ResearchModal from '@/app/components/ResearchModal';
 import MapsPanel from '@/app/components/MapsPanel';
+import ThemeToggle from '@/app/components/ThemeToggle';
 import PackingList from '@/app/components/PackingList';
 import BudgetTracker from '@/app/components/BudgetTracker';
 import CandidatesPanel from '@/app/components/CandidatesPanel';
@@ -454,6 +455,7 @@ export default function TripDetailPage() {
 
             {/* Share code + members */}
             <div className="flex items-center gap-3 flex-wrap">
+              <ThemeToggle />
               {/* Members */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-gray-400 font-semibold whitespace-nowrap">여행파트너:</span>

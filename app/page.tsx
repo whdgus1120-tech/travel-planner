@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Trip, Member, MEMBER_COLORS } from '@/lib/types';
 import { removeRecentTrip, addRecentTrip, getMySession } from '@/lib/storage';
 import { formatDateKorean, getDaysBetween } from '@/lib/dateUtils';
+import ThemeToggle from '@/app/components/ThemeToggle';
 
 interface RankingItem { rank: number; name: string; ratio: number }
 interface DealItem { title: string; link: string; pubDate: string }
@@ -224,17 +225,20 @@ export default function HomePage() {
             <span className="text-2xl">✈️</span>
             <span className="text-xl font-bold text-gray-900">트립플래너</span>
           </div>
-          {mySession && (
-            <div className="flex items-center gap-2">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                style={{ backgroundColor: mySession.color }}
-              >
-                {mySession.name[0]}
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            {mySession && (
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: mySession.color }}
+                >
+                  {mySession.name[0]}
+                </div>
+                <span className="text-sm font-semibold text-gray-700">{mySession.name}</span>
               </div>
-              <span className="text-sm font-semibold text-gray-700">{mySession.name}</span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 

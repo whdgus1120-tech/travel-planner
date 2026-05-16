@@ -1,1 +1,99 @@
 @import "tailwindcss";
+
+/* ── Dark Mode Color Overrides ──────────────────────────────────── */
+/* bg-white/text-white 충돌 방지: bg-white만 override, text-white는 그대로 유지 */
+
+/* === Backgrounds === */
+.dark .bg-white   { background-color: #1a1d2e; }
+.dark .bg-gray-50 { background-color: #0f1117; }
+.dark .bg-gray-100{ background-color: #252840; }
+.dark .bg-gray-200{ background-color: #2e3355; }
+
+/* Hover backgrounds */
+.dark .hover\:bg-gray-50:hover  { background-color: #1e2235; }
+.dark .hover\:bg-gray-100:hover { background-color: #2e3355; }
+.dark .hover\:bg-gray-200:hover { background-color: #363a60; }
+.dark .hover\:bg-white:hover    { background-color: #1e2235; }
+
+/* Accent light backgrounds */
+.dark .bg-blue-50   { background-color: #1a2540; }
+.dark .bg-blue-100  { background-color: #1e3060; }
+.dark .bg-sky-50    { background-color: #0f1e30; }
+.dark .bg-sky-100   { background-color: #132640; }
+.dark .bg-red-50    { background-color: #2a1520; }
+.dark .bg-red-100   { background-color: #3a1a28; }
+.dark .bg-green-50  { background-color: #142415; }
+.dark .bg-green-100 { background-color: #1a2e1a; }
+.dark .bg-orange-50 { background-color: #2a1e0f; }
+.dark .bg-orange-100{ background-color: #3a2510; }
+.dark .bg-yellow-50 { background-color: #261f0a; }
+.dark .bg-yellow-100{ background-color: #2d2505; }
+.dark .bg-amber-50  { background-color: #251c0a; }
+.dark .bg-amber-100 { background-color: #2e2208; }
+.dark .bg-purple-50 { background-color: #1e1530; }
+.dark .bg-purple-100{ background-color: #251a3a; }
+.dark .bg-pink-50   { background-color: #2a1525; }
+.dark .bg-pink-100  { background-color: #301828; }
+.dark .bg-teal-50   { background-color: #0f2220; }
+.dark .bg-teal-100  { background-color: #152e2a; }
+.dark .bg-violet-50 { background-color: #1a1235; }
+
+/* Hover accent backgrounds */
+.dark .hover\:bg-blue-50:hover   { background-color: #1e2f50; }
+.dark .hover\:bg-blue-100:hover  { background-color: #213570; }
+.dark .hover\:bg-red-50:hover    { background-color: #311a25; }
+.dark .hover\:bg-green-50:hover  { background-color: #1a2e1a; }
+.dark .hover\:bg-purple-50:hover { background-color: #241a40; }
+
+/* Gradient stops */
+.dark .from-blue-50  { --tw-gradient-from: #1a2540 var(--tw-gradient-from-position); }
+.dark .to-teal-50    { --tw-gradient-to: #0f2220 var(--tw-gradient-to-position); }
+
+/* === Text === */
+.dark .text-gray-900 { color: #f0f2ff; }
+.dark .text-gray-800 { color: #dde0f0; }
+.dark .text-gray-700 { color: #c8cce0; }
+.dark .text-gray-600 { color: #b4b9d4; }
+.dark .text-gray-500 { color: #9499bb; }
+.dark .text-gray-400 { color: #6b7299; }
+.dark .text-gray-300 { color: #404570; }
+.dark .text-gray-200 { color: #3a3f5c; }
+
+/* Hover text */
+.dark .hover\:text-gray-500:hover { color: #9499bb; }
+.dark .hover\:text-gray-600:hover { color: #c8cce0; }
+.dark .hover\:text-gray-800:hover { color: #f0f2ff; }
+.dark .group:hover .group-hover\:text-gray-400 { color: #6b7299; }
+.dark .group:hover .group-hover\:text-gray-500 { color: #9499bb; }
+.dark .group:hover .group-hover\:text-gray-600 { color: #b4b9d4; }
+
+/* === Borders === */
+.dark .border-gray-50  { border-color: #1e2235; }
+.dark .border-gray-100 { border-color: #252840; }
+.dark .border-gray-200 { border-color: #2e3355; }
+
+/* === Dividers === */
+.dark .divide-gray-50  > :not([hidden]) ~ :not([hidden]) { border-color: #1e2235; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #252840; }
+.dark .divide-white\/60 > :not([hidden]) ~ :not([hidden]) { border-color: #252840; }
+
+/* === Inputs & Selects === */
+.dark input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),
+.dark select,
+.dark textarea {
+  background-color: #1e2235;
+  color: #dde0f0;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #6b7299; }
+
+/* === Shadows → subtle dark glow === */
+.dark .shadow-sm  { box-shadow: 0 0 0 1px #252840; }
+.dark .shadow     { box-shadow: 0 0 0 1px #252840, 0 2px 8px rgba(0,0,0,0.5); }
+.dark .shadow-md  { box-shadow: 0 0 0 1px #252840, 0 4px 16px rgba(0,0,0,0.5); }
+.dark .shadow-lg  { box-shadow: 0 0 0 1px #252840, 0 8px 28px rgba(0,0,0,0.6); }
+.dark .shadow-xl  { box-shadow: 0 0 0 1px #252840, 0 16px 48px rgba(0,0,0,0.7); }
+.dark .shadow-2xl { box-shadow: 0 0 0 1px #252840, 0 24px 64px rgba(0,0,0,0.8); }
+
+/* Native controls */
+.dark { color-scheme: dark; }

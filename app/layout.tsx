@@ -9,6 +9,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
+      <head>
+        {/* 다크모드 플래시 방지: 렌더링 전에 동기적으로 클래스 적용 */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark');}catch(e){}` }} />
+      </head>
       <body className="bg-gray-50 min-h-screen">
         {children}
         <footer className="fixed bottom-1 right-2 text-[10px] text-gray-300 z-10 pointer-events-none select-none">
