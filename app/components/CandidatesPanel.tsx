@@ -44,10 +44,28 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ date: days[0] ?? '', time: '' });
   const [dragOver, setDragOver] = useState(false);
+  const [filterText, setFilterText] = useState('');
+  const [dragItemId, setDragItemId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.from('candidate_places').select('*').eq('trip_id', tripId).order('created_at').then(({ data }) => {
-      if (data) setCandidates(data);
+      if (!data) return;
+      const saved = localStorage.getItem(`candidates_order_${tripId}`);
+      if (saved) {
+        const order: string[] = JSON.parse(saved);
+        const sorted = [...data].sort((a, b) => {
+          const ai = order.indexOf(a.id);
+          const bi = order.indexOf(b.id);
+          if (ai === -1 && bi === -1) return 0;
+          if (ai === -1) return 1;
+          if (bi === -1) return -1;
+          return ai - bi;
+        });
+        setCandidates(sorted);
+      } else {
+        setCandidates(data);
+      }
     });
 
     const channel = supabase
@@ -130,6 +148,38 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
     setAssignForm({ date: days[0] ?? '', time: '' });
   }
 
+  function handleInternalDragStart(e: React.DragEvent, id: string, candidate: Candidate) {
+    setDragItemId(id);
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'candidate', ...candidate }));
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleInternalDragOver(e: React.DragEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragItemId && dragItemId !== id) setDragOverId(id);
+  }
+
+  function handleInternalDrop(e: React.DragEvent, toId: string) {
+    e.stopPropagation();
+    if (!dragItemId || dragItemId === toId) { setDragItemId(null); setDragOverId(null); return; }
+    setCandidates((prev) => {
+      const next = [...prev];
+      const fromIdx = next.findIndex((x) => x.id === dragItemId);
+      const toIdx = next.findIndex((x) => x.id === toId);
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      localStorage.setItem(`candidates_order_${tripId}`, JSON.stringify(next.map((x) => x.id)));
+      return next;
+    });
+    setDragItemId(null);
+    setDragOverId(null);
+  }
+
+  const displayed = filterText.trim()
+    ? candidates.filter((c) => c.name.toLowerCase().includes(filterText.toLowerCase()))
+    : candidates;
+
   const getCatConfig = (key: string) => CANDIDATE_CATS.find((c) => c.key === key) ?? CANDIDATE_CATS[CANDIDATE_CATS.length - 1];
   const getCatColor = (key: string) => CATEGORY_CONFIG[key as keyof typeof CATEGORY_CONFIG]?.color ?? 'bg-gray-100 text-gray-700';
 
@@ -170,6 +220,19 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
           + 직접 추가
         </button>
       </div>
+
+      {/* Filter search */}
+      {candidates.length > 3 && (
+        <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+          <input
+            type="text"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            placeholder="🔍 후보지 검색..."
+            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+      )}
 
       {/* Quick URL add */}
       <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
@@ -263,19 +326,25 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
             <p className="text-xs">가고 싶은 곳을 추가해보세요</p>
             <p className="text-xs mt-1">일정 항목을 여기로 드래그하세요</p>
           </div>
+        ) : displayed.length === 0 ? (
+          <div className="text-center py-8 text-gray-300">
+            <p className="text-xs">&quot;{filterText}&quot; 검색 결과 없음</p>
+          </div>
         ) : (
-          candidates.map((c) => {
+          displayed.map((c) => {
             const cat = getCatConfig(c.category);
             const isAssigning = assigningId === c.id;
             return (
               <div
                 key={c.id}
-                className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group cursor-grab active:cursor-grabbing"
+                className={`bg-white rounded-xl border shadow-sm overflow-hidden group cursor-grab active:cursor-grabbing transition-all ${
+                  dragOverId === c.id ? 'border-blue-400 border-2 scale-[1.01]' : 'border-gray-100'
+                } ${dragItemId === c.id ? 'opacity-40' : ''}`}
                 draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'candidate', ...c }));
-                  e.dataTransfer.effectAllowed = 'move';
-                }}
+                onDragStart={(e) => handleInternalDragStart(e, c.id, c)}
+                onDragOver={(e) => handleInternalDragOver(e, c.id)}
+                onDrop={(e) => handleInternalDrop(e, c.id)}
+                onDragEnd={() => { setDragItemId(null); setDragOverId(null); }}
               >
                 <div className="flex items-start gap-2 p-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 mt-0.5 ${getCatColor(c.category)}`}>
