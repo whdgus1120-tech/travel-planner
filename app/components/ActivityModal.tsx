@@ -143,6 +143,36 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
           )}
 
           <div className="space-y-4">
+            {/* Google Maps URL — 최상단: 붙여넣으면 이름·카테고리 자동 입력 */}
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+              <label className="block text-xs font-semibold text-green-700 mb-1.5">
+                🗺️ 구글맵 링크 붙여넣기 → 이름·카테고리 자동 입력
+              </label>
+              <div className="relative">
+                <input
+                  type="url"
+                  value={form.maps_url}
+                  onChange={(e) => set('maps_url', e.target.value)}
+                  onBlur={(e) => resolveMapsUrl(e.target.value)}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData('text');
+                    setTimeout(() => resolveMapsUrl(text), 50);
+                  }}
+                  placeholder="구글맵 링크 붙여넣기..."
+                  className="w-full border border-green-200 bg-white rounded-xl px-4 py-2.5 text-gray-900 placeholder-green-300 focus:outline-none focus:ring-2 focus:ring-green-300"
+                />
+                {resolvingUrl && (
+                  <span className="absolute right-3 top-3 text-xs text-green-500 animate-pulse">분석중...</span>
+                )}
+              </div>
+              {form.maps_url && (
+                <a href={form.maps_url} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-green-600 hover:underline mt-1 inline-block">
+                  🗺️ 지도 미리보기
+                </a>
+              )}
+            </div>
+
             {/* Time */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">시간</label>
@@ -189,36 +219,6 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Google Maps URL */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                🗺️ Google Maps 링크
-              </label>
-              <div className="relative">
-                <input
-                  type="url"
-                  value={form.maps_url}
-                  onChange={(e) => set('maps_url', e.target.value)}
-                  onBlur={(e) => resolveMapsUrl(e.target.value)}
-                  onPaste={(e) => {
-                    const text = e.clipboardData.getData('text');
-                    setTimeout(() => resolveMapsUrl(text), 50);
-                  }}
-                  placeholder="붙여넣으면 이름·카테고리 자동 입력"
-                  className="w-full border border-green-200 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-green-300"
-                />
-                {resolvingUrl && (
-                  <span className="absolute right-3 top-3 text-xs text-green-500 animate-pulse">분석중...</span>
-                )}
-              </div>
-              {form.maps_url && (
-                <a href={form.maps_url} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-green-600 hover:underline mt-1 inline-block">
-                  🗺️ 지도 미리보기
-                </a>
-              )}
             </div>
 
             {/* Location */}

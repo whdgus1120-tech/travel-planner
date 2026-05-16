@@ -38,6 +38,8 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
   const [form, setForm] = useState({ name: '', category: 'sightseeing', notes: '', maps_url: '' });
   const [adding, setAdding] = useState(false);
   const [resolvingUrl, setResolvingUrl] = useState(false);
+  const [quickUrl, setQuickUrl] = useState('');
+  const [quickResolving, setQuickResolving] = useState(false);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ date: days[0] ?? '', time: '' });
   const [dragOver, setDragOver] = useState(false);
@@ -75,6 +77,27 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
       }
     } catch { /* ignore */ }
     setResolvingUrl(false);
+  }
+
+  async function quickAddFromUrl(url: string) {
+    const trimmed = url.trim();
+    if (!trimmed || (!trimmed.includes('google') && !trimmed.includes('goo.gl') && !trimmed.includes('maps.app'))) return;
+    setQuickResolving(true);
+    setQuickUrl('');
+    try {
+      const res = await fetch(`/api/resolve-maps?url=${encodeURIComponent(trimmed)}`);
+      const data = await res.json();
+      if (data.name) {
+        await supabase.from('candidate_places').insert({
+          trip_id: tripId,
+          name: data.name,
+          category: data.category ?? 'sightseeing',
+          notes: '',
+          maps_url: trimmed,
+        });
+      }
+    } catch { /* ignore */ }
+    setQuickResolving(false);
   }
 
   async function addCandidate() {
@@ -141,8 +164,29 @@ export default function CandidatesPanel({ tripId, days, startDate, onAddToSchedu
           onClick={() => setShowForm(!showForm)}
           className="text-xs bg-blue-500 text-white font-semibold px-2.5 py-1.5 rounded-lg hover:bg-blue-600 transition-colors"
         >
-          + 추가
+          + 직접 추가
         </button>
+      </div>
+
+      {/* Quick URL add */}
+      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+        <div className="relative">
+          <input
+            type="url"
+            value={quickUrl}
+            onChange={(e) => setQuickUrl(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData('text');
+              setTimeout(() => quickAddFromUrl(text), 50);
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') quickAddFromUrl(quickUrl); }}
+            placeholder="🗺️ 구글맵 링크 붙여넣기 → 바로 추가"
+            className="w-full border border-green-200 rounded-lg px-3 py-2 text-xs bg-green-50 placeholder-green-400 focus:outline-none focus:ring-2 focus:ring-green-300"
+          />
+          {quickResolving && (
+            <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">추가 중...</span>
+          )}
+        </div>
       </div>
 
       {/* Add Form */}
