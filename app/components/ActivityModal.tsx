@@ -60,7 +60,7 @@ export default function ActivityModal({ tripId, date, members, activity, onClose
       if (data.name) {
         setForm((p) => ({
           ...p,
-          title: p.title.trim() ? p.title : data.name,
+          title: data.name,
           category: (data.category as Activity['category']) ?? p.category,
           maps_url: url,
         }));
