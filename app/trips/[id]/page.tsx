@@ -84,7 +84,7 @@ export default function TripDetailPage() {
   const [mobileChatOpen, setMobileChatOpen] = useState(true);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [candidatesWidth, setCandidatesWidth] = useState(240);
-  const [chatWidth, setChatWidth] = useState(420);
+  const [chatWidth, setChatWidth] = useState(480);
 
   // Flights & Accommodations
   const [flights, setFlights] = useState<{ departure: FlightInfo | null; return: FlightInfo | null }>({ departure: null, return: null });
@@ -282,7 +282,7 @@ export default function TripDetailPage() {
     const startX = e.clientX;
     const startWidth = panel === 'candidates' ? candidatesWidth : chatWidth;
     const onMove = (ev: MouseEvent) => {
-      const newWidth = Math.max(160, Math.min(520, startWidth - (ev.clientX - startX)));
+      const newWidth = Math.max(160, Math.min(800, startWidth - (ev.clientX - startX)));
       if (panel === 'candidates') setCandidatesWidth(newWidth);
       else setChatWidth(newWidth);
     };

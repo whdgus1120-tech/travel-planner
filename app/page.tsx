@@ -25,6 +25,11 @@ export default function HomePage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [membersByTrip, setMembersByTrip] = useState<Record<string, Member[]>>({});
 
+  // Edit trip
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', destination: '', start_date: '', end_date: '' });
+  const [saving, setSaving] = useState(false);
+
   // Join
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [joinCode, setJoinCode] = useState('');
@@ -136,6 +141,25 @@ export default function HomePage() {
     } else {
       router.push(`/trips/join/${code}`);
     }
+  };
+
+  const handleEditTrip = async () => {
+    if (!editingTrip || !editForm.title.trim() || !editForm.destination.trim()) return;
+    setSaving(true);
+    const { data } = await supabase
+      .from('trips')
+      .update({
+        title: editForm.title.trim(),
+        destination: editForm.destination.trim(),
+        start_date: editForm.start_date,
+        end_date: editForm.end_date,
+      })
+      .eq('id', editingTrip.id)
+      .select()
+      .single();
+    if (data) setTrips((prev) => prev.map((t) => t.id === data.id ? data as Trip : t));
+    setSaving(false);
+    setEditingTrip(null);
   };
 
   const RANK_EMOJIS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
@@ -327,6 +351,16 @@ export default function HomePage() {
                                 )}
                               </div>
                             </Link>
+                            {/* Edit button */}
+                            <button
+                              onClick={(e) => { e.preventDefault(); setEditingTrip(trip); setEditForm({ title: trip.title, destination: trip.destination, start_date: trip.start_date, end_date: trip.end_date }); }}
+                              className="p-3 mt-3 text-gray-300 hover:text-blue-400 hover:bg-blue-50 rounded-xl transition-colors flex-shrink-0"
+                              title="여행 수정"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
                             {/* Delete button */}
                             <button
                               onClick={(e) => { e.preventDefault(); setConfirmDeleteId(trip.id); }}
@@ -479,6 +513,71 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* Edit trip modal */}
+      {editingTrip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingTrip(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="text-base font-bold text-gray-900 mb-4">여행 정보 수정</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">여행 이름</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">여행 장소</label>
+                <input
+                  type="text"
+                  value={editForm.destination}
+                  onChange={(e) => setEditForm((p) => ({ ...p, destination: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">시작일</label>
+                  <input
+                    type="date"
+                    value={editForm.start_date}
+                    onChange={(e) => setEditForm((p) => ({ ...p, start_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">종료일</label>
+                  <input
+                    type="date"
+                    value={editForm.end_date}
+                    onChange={(e) => setEditForm((p) => ({ ...p, end_date: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setEditingTrip(null)}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleEditTrip}
+                disabled={saving}
+                className="flex-1 bg-blue-500 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-600 disabled:opacity-50"
+              >
+                {saving ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
