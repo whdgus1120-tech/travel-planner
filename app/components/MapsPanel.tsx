@@ -10,9 +10,19 @@ interface Props {
 }
 
 export default function MapsPanel({ tripId, destination, onClose }: Props) {
+  const [searchInput, setSearchInput] = useState('');
+  const [mapSrc, setMapSrc] = useState(
+    `https://maps.google.com/maps?q=${encodeURIComponent(destination)}&output=embed&hl=ko`
+  );
   const [quickUrl, setQuickUrl] = useState('');
   const [resolving, setResolving] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  function handleSearch() {
+    const q = searchInput.trim();
+    if (!q) return;
+    setMapSrc(`https://maps.google.com/maps?q=${encodeURIComponent(q)}&output=embed&hl=ko`);
+  }
 
   async function addFromUrl(url: string) {
     const trimmed = url.trim();
@@ -37,8 +47,6 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
     setResolving(false);
   }
 
-  const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(destination)}&output=embed&hl=ko`;
-
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -46,7 +54,6 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
         <div className="flex items-center gap-2">
           <span className="text-base">🗺️</span>
           <span className="font-bold text-gray-800 text-sm">Google Maps</span>
-          <span className="text-xs text-gray-400 truncate max-w-[80px]">{destination}</span>
         </div>
         {onClose && (
           <button
@@ -57,6 +64,26 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
             ‹
           </button>
         )}
+      </div>
+
+      {/* Search bar */}
+      <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0">
+        <div className="flex gap-1.5">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+            placeholder={`🔍 장소 검색 (예: 오사카 라멘)`}
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+          <button
+            onClick={handleSearch}
+            className="text-xs bg-blue-500 text-white font-semibold px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors flex-shrink-0"
+          >
+            검색
+          </button>
+        </div>
       </div>
 
       {/* URL paste → add to candidates */}
@@ -77,12 +104,13 @@ export default function MapsPanel({ tripId, destination, onClose }: Props) {
           {resolving && <span className="absolute right-2 top-2 text-xs text-green-500 animate-pulse">분석 중...</span>}
           {success && <span className="absolute right-2 top-2 text-xs text-green-600 font-semibold">✓ 후보지 추가됨</span>}
         </div>
-        <p className="text-xs text-gray-300 mt-1 px-0.5">지도에서 장소 선택 → 공유 → 링크 복사 → 여기 붙여넣기</p>
+        <p className="text-xs text-gray-300 mt-1 px-0.5">장소 클릭 → 공유 → 링크 복사 → 위에 붙여넣기</p>
       </div>
 
       {/* Google Maps iframe */}
       <div className="flex-1 overflow-hidden">
         <iframe
+          key={mapSrc}
           src={mapSrc}
           className="w-full h-full border-0"
           allowFullScreen

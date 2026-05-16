@@ -84,7 +84,7 @@ export default function TripDetailPage() {
   const [mobileChatOpen, setMobileChatOpen] = useState(true);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [candidatesWidth, setCandidatesWidth] = useState(240);
-  const [chatWidth, setChatWidth] = useState(288);
+  const [chatWidth, setChatWidth] = useState(420);
 
   // Flights & Accommodations
   const [flights, setFlights] = useState<{ departure: FlightInfo | null; return: FlightInfo | null }>({ departure: null, return: null });
